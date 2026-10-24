@@ -4,7 +4,8 @@ The goal of **safeconduct** is to handle file download or webpage access in situ
 
 Fetch files and pages through a real browser when a plain request is refused.
 
-Documentation, with the function reference, is at
+Documentation, with the function reference and a getting-started vignette
+that walks through two refused downloads, is at
 <https://mountainmath.github.io/safeconduct/>.
 
 Some servers refuse any request that does not come from a web browser.
@@ -27,7 +28,9 @@ a throwaway profile is opened on the host, the check runs if there is one, and
 the file is downloaded: through `curl` carrying the clearance the browser was
 given where the server accepts that, and in the browser itself where it does
 not. A clearance that `curl` can use is kept for the rest of the R session, so
-later files from the same host need no browser.
+later files from the same host need no browser. A file downloaded in the
+browser lands under `tempdir()` and is moved to its destination when
+complete; nothing of the package's is written next to the destination.
 
 Nothing is simulated. When the check shows a "Verify you are human" box, the
 window stays on screen for up to two minutes for the person at the screen to
@@ -51,29 +54,40 @@ close(s)
 
 The read is made by the page the browser holds on the host. Should the server
 ask the browser for a check again meanwhile, the check is passed and the read
-repeated. `fetch(url, destfile, session = s)` downloads a file in the same
-browser.
+repeated; should the browser go away -- its window closed -- the next read
+opens another and says so. `fetch(url, destfile, session = s)` downloads a
+file in the same browser.
 
 ## Windows, and when one is shown
 
-By default a window is shown when there is a display, since a Cloudflare
-managed challenge is not passed by headless Chrome. Headless Chrome does get
-past some refusals, so `headed = "auto"` tries it first and opens a window
-only when the headless run ends on a check or a block, which it finds out
-within a couple of seconds. `headed = FALSE` never shows a window, and
-`headed = TRUE` always does. The argument is on every function that may open
-a browser; `options(safeconduct.headed = ...)` sets its default for the R
-session.
+By default headless Chrome goes first, and a window is opened only when the
+headless run ends on a check or a block, which it finds out within a couple
+of seconds, and only when there is a display to show it on. `headed = FALSE`
+never shows a window, and `headed = TRUE` opens one at once. The argument is
+on every function that may open a browser.
+
+Some hosts run a second check at the file's URL, after the one at their
+root. Headless Chrome has passed such a check with nothing clicked, but only
+after Cloudflare held it for about two minutes (www12.statcan.gc.ca, October
+2026), where a window shows a "Verify you are human" box and is through as
+soon as it is clicked. By default the package says so, waits those minutes,
+and opens a window if they pass without; `headed = TRUE` skips the wait.
 
 At the console, once a host has been found to need a window or the browser
 for the transfer, a tip says how to skip the finding out next time:
 `headed = TRUE`, or a `browser_session()` for several files or reads from
 the host. Tips come once per host and R session.
 
-Headless Chrome announces itself as `HeadlessChrome` in its user-agent string
-and this package leaves that as it is. Firewall rules that block clients which
-do not look like a browser block it on that account, so on such hosts a window
-is what works.
+Headless Chrome announces itself as `HeadlessChrome` in its user-agent string,
+and some firewall rules refuse it on that word alone: results.vancouver.ca and
+webtransfer.vancouver.ca do, while serving the same headless Chrome once the
+word is gone, and with the word gone headless Chrome has also passed the
+managed challenge at www12.statcan.gc.ca with nothing clicked (October 2026).
+So by default the package drops the word and nothing else: the string still
+says the Chrome version and platform it is. The `useragent` argument, on every
+function that may open a browser, takes `NULL` to leave Chrome's own string or
+a string to use as given; a session keeps the setting through any reopening
+of its browser.
 
 ## Limitations
 

@@ -4,10 +4,18 @@
 \alias{browser_session}
 \title{Keep a browser open on a host}
 \usage{
-browser_session(url, quiet = FALSE, wait = NULL, headed = NULL)
+browser_session(
+  url,
+  quiet = FALSE,
+  wait = NULL,
+  headed = "auto",
+  useragent = TRUE
+)
 }
 \arguments{
-\item{url}{A URL on the host. The browser is opened on the host's root.}
+\item{url}{A URL on the host. The browser is opened on the host's root.
+\code{headed} and \code{useragent} hold for the session's life, through any
+reopening of its browser.}
 
 \item{quiet}{Suppress progress messages.}
 
@@ -15,12 +23,23 @@ browser_session(url, quiet = FALSE, wait = NULL, headed = NULL)
 minutes when a window is shown, so that a person can click a box if one
 appears, and thirty seconds headless.}
 
-\item{headed}{How to run the browser, when one is needed: \code{TRUE} for a
-window, \code{FALSE} for headless Chrome, or \code{"auto"} to try headless first
-and open a window only when the headless run does not get through, so
-that a window is shown only when someone may need to click. \code{NULL}, the
-default, takes the \code{safeconduct.headed} option, and failing that shows a
-window when there is a display.}
+\item{headed}{How to run the browser, when one is needed: \code{"auto"}, the
+default, tries headless Chrome first and opens a window only when the
+headless run does not get through, so that a window is shown only when
+someone may need to click; \code{TRUE} opens a window at once and \code{FALSE}
+never does. Without a display \code{"auto"} is headless. A host may run a
+second check at the file's URL, after the one at its root; headless
+Chrome has passed such a check with nothing clicked, but only after
+about two minutes, where a window shows a box that gets it through as
+soon as it is clicked. \code{"auto"} waits those minutes and opens a window
+if they pass without; \code{TRUE} skips the wait.}
+
+\item{useragent}{The user-agent string the browser announces. Headless
+Chrome's own calls it \code{HeadlessChrome}, and some hosts refuse it on that
+word alone. \code{TRUE}, the default, drops the word, so that the string says
+the Chrome version and platform it is and nothing it is not; \code{NULL}
+leaves Chrome's own string; a string is used as given. Set before the
+browser's first request, and what \code{\link[=clearance]{clearance()}} then reports.}
 }
 \value{
 An object of class \code{safeconduct_session}. Its \code{clearance} is what
@@ -30,13 +49,15 @@ An object of class \code{safeconduct_session}. Its \code{clearance} is what
 Opens a Chrome with a throwaway profile on the host, lets any browser
 check run, and keeps it open, for \code{\link[=read_page]{read_page()}} and \code{\link[=fetch]{fetch()}} to use
 through their \code{session} argument. Close it with \code{\link[=close]{close()}}; a session that
-is not closed lives until the R session ends.
+is not closed lives until the R session ends. Should the browser go away
+meanwhile -- its window closed, say -- the next read or download opens
+another, the same way, and says so.
 }
 \examples{
 \dontrun{
 s <- browser_session("https://results.vancouver.ca/")
 r <- read_page("https://results.vancouver.ca/data/arearesults.json",
-                  session = s)
+               session = s)
 close(s)
 }
 }

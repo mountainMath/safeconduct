@@ -9,18 +9,24 @@
 # for a document). `bodies` maps request ids to the bodies
 # `Network.getResponseBody()` hands out; `read` is what `Runtime.evaluate()`
 # returns for anything but the user-agent query, either a value or a
-# function of the expression.
+# function of the expression (one that raises stands for a browser that is
+# not answering). `active` is what `is_active()` reports; set it to `FALSE`
+# for a browser that has gone away.
 fake_session <- function(events = list(), cookies = list(), payload = "data",
-                         bodies = list(), read = NULL) {
+                         bodies = list(), read = NULL, ua = "Mozilla/5.0 (fake)") {
   dl_callback <- NULL
   doc_callback <- NULL
   n <- 0L
   dir <- NULL
   session <- new.env()
   session$calls <- character()
+  session$active <- TRUE
+  session$is_active <- function() session$active
+  session$ua <- ua
   session$Browser <- list(
     setDownloadBehavior = function(behavior, downloadPath, eventsEnabled) {
       dir <<- downloadPath
+      session$download_dir <- downloadPath
       session$calls <- c(session$calls, "setDownloadBehavior")
       list()
     },
@@ -53,6 +59,11 @@ fake_session <- function(events = list(), cookies = list(), payload = "data",
     getFrameTree = function() list(frameTree = list(frame = list(id = "main"))))
   session$Network <- list(
     enable = function() list(),
+    setUserAgentOverride = function(userAgent) {
+      session$calls <- c(session$calls, paste0("ua:", userAgent))
+      session$ua <- userAgent
+      list()
+    },
     getCookies = function(urls) list(cookies = cookies),
     responseReceived = function(callback_, wait_) {
       doc_callback <<- callback_
@@ -66,7 +77,7 @@ fake_session <- function(events = list(), cookies = list(), payload = "data",
   session$Runtime <- list(
     evaluate = function(expr, ...) {
       if (identical(expr, "navigator.userAgent"))
-        return(list(result = list(value = "Mozilla/5.0 (fake)")))
+        return(list(result = list(value = session$ua)))
       session$calls <- c(session$calls, "evaluate")
       value <- if (is.function(read)) read(expr) else read
       list(result = list(value = value))
@@ -101,10 +112,12 @@ read_result <- function(status = 200, body = '{"a":1}',
        headers = headers, body = jsonlite::base64_enc(charToRaw(body)))
 }
 
-fake_chrome <- function(session = fake_session(), headed = TRUE) {
+fake_chrome <- function(session = fake_session(), headed = TRUE,
+                        mode = if (headed) "headed" else "auto") {
   closed <- FALSE
   session$headed <- headed
   list(session = session, headed = headed, wait = if (headed) 120 else 30,
+       mode = mode, useragent = TRUE,
        close = function() closed <<- TRUE,
        is_closed = function() closed)
 }
@@ -116,3 +129,5 @@ a_clearance <- function(url = "https://example.org/x.zip") {
 reset_cache <- function() {
   rm(list = ls(bf_clearance_cache), envir = bf_clearance_cache)
 }
+
+reset_hints <- function() rm(list = ls(bf_hints, all.names = TRUE), envir = bf_hints)

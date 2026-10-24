@@ -59,9 +59,18 @@ test_that("without a browser, a challenged URL is a classed error", {
   expect_match(conditionMessage(err), "safeconduct.browser")
 })
 
+# Pin how the browser is run, for tests whose subject is not that.
+local_headed <- function(headed, env = parent.frame()) {
+  local_mocked_bindings(bf_headed_mode = function(headed = "auto") {
+    if (isTRUE(headed)) "headed" else if (isFALSE(headed)) "headless" else mode
+  }, .env = env)
+  mode <- if (isTRUE(headed)) "headed" else "headless"
+  invisible(mode)
+}
+
 test_that("a clearance that carries over is used by curl and kept", {
   reset_cache()
-  withr::local_options(safeconduct.headed = TRUE)
+  local_headed(TRUE)
   chrome <- local_passing_browser()
   local_mocked_bindings(
     bf_probe = challenged_plain,
@@ -90,7 +99,7 @@ test_that("a clearance that carries over is used by curl and kept", {
   local_mocked_bindings(
     bf_probe = challenged,
     bf_launch_chrome = function(headed) { reopened <<- TRUE; fake_chrome() },
-    bf_browser_download = function(session, url, destfile, quiet, timeout) {
+    bf_browser_download = function(session, url, destfile, quiet, timeout, headed, ...) {
       writeLines("x", destfile); invisible(destfile)
     })
   fetch("https://example.org/z.zip", dest, quiet = TRUE)
@@ -100,13 +109,13 @@ test_that("a clearance that carries over is used by curl and kept", {
 
 test_that("when the clearance does not carry over, the browser downloads", {
   reset_cache()
-  withr::local_options(safeconduct.headed = TRUE)
+  local_headed(TRUE)
   chrome <- local_passing_browser()
   got <- NULL
   local_mocked_bindings(
     bf_probe = challenged,
     bf_curl_download = function(...) stop("curl should not be used"),
-    bf_browser_download = function(session, url, destfile, quiet, timeout) {
+    bf_browser_download = function(session, url, destfile, quiet, timeout, headed, ...) {
       got <<- url; writeLines("x", destfile); invisible(destfile)
     })
   dest <- withr::local_tempfile()
@@ -120,13 +129,13 @@ test_that("when the clearance does not carry over, the browser downloads", {
 
 test_that("a blocked URL is downloaded in the browser", {
   reset_cache()
-  withr::local_options(safeconduct.headed = FALSE)
+  local_headed(FALSE)
   chrome <- local_passing_browser(fake_chrome(headed = FALSE))
   got <- NULL
   local_mocked_bindings(
     bf_probe = blocked,
     bf_curl_download = function(...) stop("curl should not be used"),
-    bf_browser_download = function(session, url, destfile, quiet, timeout) {
+    bf_browser_download = function(session, url, destfile, quiet, timeout, headed, ...) {
       got <<- url; writeLines("x", destfile); invisible(destfile)
     })
   dest <- withr::local_tempfile()
@@ -140,7 +149,7 @@ test_that("a blocked URL is downloaded in the browser", {
 
 test_that("a check that is not passed is a classed error, and the window closes", {
   reset_cache()
-  withr::local_options(safeconduct.headed = TRUE)
+  local_headed(TRUE)
   chrome <- fake_chrome()
   local_mocked_bindings(
     bf_probe = challenged,
@@ -153,9 +162,8 @@ test_that("a check that is not passed is a classed error, and the window closes"
   expect_true(chrome$is_closed())
 })
 
-test_that("in auto mode a headless run that does not get through is retried in a window", {
+test_that("by default a headless run that does not get through is retried in a window", {
   reset_cache()
-  withr::local_options(safeconduct.headed = "auto")
   launched <- logical()
   chromes <- list()
   local_mocked_bindings(
@@ -173,7 +181,7 @@ test_that("in auto mode a headless run that does not get through is retried in a
         stop(bf_error("safeconduct_not_passed", "blocked", reason = "blocked"))
       a_clearance(url)
     },
-    bf_browser_download = function(session, url, destfile, quiet, timeout) {
+    bf_browser_download = function(session, url, destfile, quiet, timeout, headed, ...) {
       writeLines("x", destfile); invisible(destfile)
     })
   dest <- withr::local_tempfile()
@@ -185,11 +193,51 @@ test_that("in auto mode a headless run that does not get through is retried in a
   expect_true(chromes[[2]]$is_closed())
 
   # Headless by choice is not retried.
-  withr::local_options(safeconduct.headed = FALSE)
   launched <- logical()
-  expect_error(fetch("https://example.org/x.zip", dest, quiet = TRUE),
+  expect_error(fetch("https://example.org/x.zip", dest, quiet = TRUE, headed = FALSE),
                class = "safeconduct_not_passed")
   expect_identical(launched, FALSE)
+})
+
+test_that("by default a check at the file's URL that headless Chrome does not pass is retried in a window", {
+  reset_cache()
+  reset_hints()
+  launched <- logical()
+  chromes <- list()
+  downloads <- list()
+  local_mocked_bindings(
+    bf_display_available = function() TRUE,
+    bf_probe = challenged,
+    bf_browser_unavailable_reason = function() NULL,
+    bf_launch_chrome = function(headed) {
+      launched <<- c(launched, headed)
+      ch <- fake_chrome(headed = headed)
+      chromes[[length(chromes) + 1L]] <<- ch
+      ch
+    },
+    bf_wait_pass = function(session, url, timeout) a_clearance(url),
+    bf_browser_download = function(session, url, destfile, quiet, timeout, headed, ...) {
+      downloads[[length(downloads) + 1L]] <<- list(headed = headed, ...)
+      if (!headed) stop(bf_error("safeconduct_not_passed", "still checking",
+                                 reason = "timeout"))
+      writeLines("x", destfile); invisible(destfile)
+    })
+  dest <- withr::local_tempfile()
+  msgs <- paste(capture_messages(fetch("https://example.org/x.zip", dest)), collapse = "")
+  expect_identical(launched, c(FALSE, TRUE))
+  expect_true(downloads[[1]]$fallback)
+  expect_false(isTRUE(downloads[[2]]$fallback))
+  expect_match(msgs, "did not get through the check at the file's URL; opening a window")
+  expect_true(chromes[[1]]$is_closed())
+  expect_true(chromes[[2]]$is_closed())
+  expect_identical(readLines(dest), "x")
+
+  # Headless by choice is told the download fails, and not retried.
+  launched <- logical(); downloads <- list()
+  expect_error(fetch("https://example.org/x.zip", dest, quiet = TRUE, headed = FALSE),
+               class = "safeconduct_not_passed")
+  expect_identical(launched, FALSE)
+  expect_false(downloads[[1]]$fallback)
 })
 
 test_that("a Chrome that will not start is reported as unavailable", {
@@ -223,7 +271,7 @@ test_that("download_in_browser() goes straight to the browser", {
   got <- NULL
   local_mocked_bindings(
     bf_probe = function(...) stop("no probe wanted"),
-    bf_browser_download = function(session, url, destfile, quiet, timeout) {
+    bf_browser_download = function(session, url, destfile, quiet, timeout, headed, ...) {
       got <<- url; invisible(destfile)
     })
   download_in_browser("https://example.org/x.zip", withr::local_tempfile(), quiet = TRUE)
@@ -243,7 +291,7 @@ test_that("read_page() reads with curl where it can", {
 
 test_that("read_page() reads in the browser where it must", {
   reset_cache()
-  withr::local_options(safeconduct.headed = TRUE)
+  local_headed(TRUE)
   chrome <- local_passing_browser(fake_chrome(fake_session(read = read_result())))
   local_mocked_bindings(bf_probe = blocked)
   r <- read_page("https://example.org/feed.json", quiet = TRUE)
@@ -265,7 +313,6 @@ test_that("read_page() reads in the browser where it must", {
   reset_cache()
 })
 
-reset_hints <- function() rm(list = ls(bf_hints, all.names = TRUE), envir = bf_hints)
 
 test_that("a call counts as the console unless a package other than this one is on the stack", {
   ours <- topenv(environment(fetch))
@@ -323,15 +370,25 @@ test_that("a browser download and an auto fallback each leave a tip", {
       if (!session$headed) stop(bf_error("safeconduct_not_passed", "blocked", reason = "blocked"))
       a_clearance(url)
     },
-    bf_browser_download = function(session, url, destfile, quiet, timeout) {
+    bf_browser_download = function(session, url, destfile, quiet, timeout, headed, ...) {
       writeLines("x", destfile); invisible(destfile)
     })
   dest <- withr::local_tempfile()
   msgs <- paste(capture_messages(fetch("https://example.org/x.zip", dest, headed = "auto")),
                 collapse = "")
   expect_match(msgs, "headed = TRUE goes straight to one next time")
+  expect_no_match(msgs, "useragent")
   expect_match(msgs, 'browser_session\\("https://example.org/", headed = TRUE\\)')
   expect_match(msgs, "fetch\\(url, destfile, session = s\\)")
+  # Headless under its own name and blocked: the tips name useragent.
+  reset_hints()
+  msgs <- paste(capture_messages(fetch("https://example.org/x.zip", dest, useragent = NULL)),
+                collapse = "")
+  expect_match(msgs, "useragent = TRUE drops the word")
+  expect_match(msgs, 'browser_session\\("https://example.org/", headed = TRUE, useragent = NULL\\)')
+  reset_hints()
+  msgs <- paste(capture_messages(fetch("https://example.org/x.zip", dest, headed = "auto")),
+                collapse = "")
   # Second file from the host: no tips again, and none at all when quiet.
   msgs <- paste(capture_messages(fetch("https://example.org/y.zip", dest, headed = "auto")),
                 collapse = "")
@@ -361,12 +418,39 @@ test_that("a browser download and an auto fallback each leave a tip", {
   reset_hints(); reset_cache()
 })
 
-test_that("the headed argument wins over the option", {
-  local_mocked_bindings(bf_display_available = function() TRUE)
-  withr::local_options(safeconduct.headed = FALSE)
-  expect_identical(bf_headed_mode(), "headless")
-  expect_identical(bf_headed_mode(TRUE), "headed")
-  expect_identical(bf_headed_mode("auto"), "auto")
-  withr::local_options(safeconduct.headed = NULL)
-  expect_identical(bf_headed_mode(FALSE), "headless")
+test_that("a bad headed argument is refused before a browser is launched", {
+  local_mocked_bindings(bf_browser_unavailable_reason = function() NULL,
+                        bf_probe = blocked,
+                        bf_launch_chrome = function(headed) stop("should not launch"))
+  expect_error(fetch("https://example.org/x.zip", withr::local_tempfile(), headed = "yes"),
+               "auto")
+})
+
+test_that("useragent reaches the browser before the check and the session tip", {
+  reset_cache(); reset_hints()
+  chrome <- fake_chrome(fake_session(ua = "Mozilla/5.0 (fake) HeadlessChrome/1"), headed = FALSE)
+  local_mocked_bindings(
+    bf_interactive = function() TRUE,
+    bf_stack_envs = function() list(globalenv()),
+    bf_probe = blocked,
+    bf_browser_unavailable_reason = function() NULL,
+    bf_launch_chrome = function(headed) chrome,
+    bf_wait_pass = function(session, url, timeout) {
+      expect_identical(session$ua, "Mozilla/5.0 (fake) Chrome/1")
+      bf_clearance(url, session$ua, "")
+    },
+    bf_browser_download = function(session, url, destfile, quiet, timeout, headed, ...) {
+      writeLines("x", destfile); invisible(destfile)
+    })
+  dest <- withr::local_tempfile()
+  msgs <- paste(capture_messages(fetch("https://example.org/x.zip", dest, headed = FALSE)),
+                collapse = "")
+  expect_match(msgs, 'browser_session\\("https://example.org/"\\)')
+  expect_identical(chrome$session$calls[[1]], "ua:Mozilla/5.0 (fake) Chrome/1")
+  # The clearance reports the string the browser announced.
+  reset_cache()
+  cl <- clearance("https://example.org/", quiet = TRUE, headed = FALSE, useragent = TRUE)
+  expect_identical(cl$useragent, "Mozilla/5.0 (fake) Chrome/1")
+  expect_error(read_page("https://example.org/x.json", useragent = NA), "one string")
+  reset_cache(); reset_hints()
 })

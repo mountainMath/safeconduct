@@ -80,7 +80,9 @@ bf_hint_session <- function(hints, url, fn, chrome) {
   bf_hint(hints, paste0("session:", host),
     "for more from '", host, "', keep one browser open instead of one per call:",
     "\n       s <- browser_session(\"", bf_host_root(url), "\"",
-    if (isTRUE(chrome$fell_back)) ", headed = TRUE", ")",
+    if (isTRUE(chrome$fell_back)) ", headed = TRUE",
+    if (!isTRUE(chrome$useragent)) paste0(", useragent = ", deparse(chrome$useragent)),
+    ")",
     "\n       ", fn, "(url, ", if (fn == "fetch") "destfile, ", "session = s)",
     "\n       close(s)")
 }

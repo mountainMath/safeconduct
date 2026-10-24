@@ -38,15 +38,19 @@ bf_clearance_cache <- new.env(parent = emptyenv())
 #' the window stays on screen for up to two minutes for the person at the
 #' screen to click it; nothing in this package clicks it for them.
 #'
+#' A file downloaded in the browser lands under [tempdir()] and is moved to
+#' `destfile` when complete; nothing is written next to `destfile` meanwhile.
+#'
 #' @section Requirements:
 #' A Chrome or Chromium installation, found by [chromote::find_chrome()] (set
 #' the `CHROMOTE_CHROME` environment variable if it is somewhere unusual).
-#' A window is shown when there is a display; without one Chrome runs
-#' headless, which gets past a block but not, as of October 2026, a
-#' Cloudflare managed challenge. The `headed` argument overrides the guess
-#' about the display, and `options(safeconduct.headed = ...)` sets its
-#' default. Set `options(safeconduct.browser = FALSE)` to never open a
-#' browser. The window is 1000 by 800 pixels;
+#' By default Chrome runs headless first, and a window is opened only when
+#' the headless run ends on a check or a block and there is a display to
+#' show it on; the `headed` argument changes that. Headless Chrome under its
+#' own name does not pass a Cloudflare managed challenge, as of October
+#' 2026, but with the word `Headless` dropped from its user-agent string,
+#' which is the default, it has. Set `options(safeconduct.browser = FALSE)`
+#' to never open a browser. The window is 1000 by 800 pixels;
 #' `options(safeconduct.window = c(width, height))` opens one of another size
 #' in pixels, and `"maximized"` a maximized one. Experimentally,
 #' `options(safeconduct.focus = "<css selector>")` pins the element that
@@ -67,16 +71,28 @@ bf_clearance_cache <- new.env(parent = emptyenv())
 #' @param url The file's URL.
 #' @param destfile Where to write it. A failed transfer leaves nothing there.
 #' @param quiet Suppress progress messages.
-#' @param headed How to run the browser, when one is needed: `TRUE` for a
-#'   window, `FALSE` for headless Chrome, or `"auto"` to try headless first
-#'   and open a window only when the headless run does not get through, so
-#'   that a window is shown only when someone may need to click. `NULL`, the
-#'   default, takes the `safeconduct.headed` option, and failing that shows a
-#'   window when there is a display.
+#' @param headed How to run the browser, when one is needed: `"auto"`, the
+#'   default, tries headless Chrome first and opens a window only when the
+#'   headless run does not get through, so that a window is shown only when
+#'   someone may need to click; `TRUE` opens a window at once and `FALSE`
+#'   never does. Without a display `"auto"` is headless. A host may run a
+#'   second check at the file's URL, after the one at its root; headless
+#'   Chrome has passed such a check with nothing clicked, but only after
+#'   about two minutes, where a window shows a box that gets it through as
+#'   soon as it is clicked. `"auto"` waits those minutes and opens a window
+#'   if they pass without; `TRUE` skips the wait.
+#' @param useragent The user-agent string the browser announces. Headless
+#'   Chrome's own calls it `HeadlessChrome`, and some hosts refuse it on that
+#'   word alone. `TRUE`, the default, drops the word, so that the string says
+#'   the Chrome version and platform it is and nothing it is not; `NULL`
+#'   leaves Chrome's own string; a string is used as given. Set before the
+#'   browser's first request, and what [clearance()] then reports.
 #' @param timeout Seconds a transfer in the browser may take.
 #' @param session A browser session from [browser_session()]. When given,
 #'   the file is downloaded in that browser without any probing, and the
-#'   browser stays open afterwards.
+#'   browser stays open afterwards; `headed` and `useragent` are then the
+#'   session's. A browser that has gone away -- its window closed -- is
+#'   opened again first.
 #' @return `destfile`, invisibly. Errors are classed under
 #'   `safeconduct_error`: `safeconduct_unavailable` when no browser can be
 #'   opened here (its message says what is missing),
@@ -91,11 +107,25 @@ bf_clearance_cache <- new.env(parent = emptyenv())
 #' }
 #' @export
 fetch <- function(url, destfile, quiet = FALSE, timeout = 3600, session = NULL,
-                  headed = NULL) {
+                  headed = "auto", useragent = TRUE) {
   if (!is.null(session)) {
     s <- bf_session_check(session)
-    return(bf_browser_download(s$chrome$session, url, destfile, quiet = quiet,
-                               timeout = timeout))
+    return(bf_session_do(s, quiet = quiet, function(chrome) {
+      fallback <- !chrome$headed && identical(s$mode, "auto")
+      tryCatch(
+        bf_browser_download(chrome$session, url, destfile, quiet = quiet,
+                            timeout = timeout, headed = chrome$headed,
+                            fallback = fallback),
+        safeconduct_not_passed = function(e) {
+          if (!fallback || !identical(e$reason, "timeout")) stop(e)
+          s$headed <- TRUE
+          bf_session_reopen(s, quiet, why = paste0(
+            "Headless Chrome did not get through the check at the file's URL ",
+            "on '", s$host, "'; opening a window for the session."))
+          bf_browser_download(s$chrome$session, url, destfile, quiet = quiet,
+                              timeout = timeout, headed = TRUE)
+        })
+    }))
   }
   hints <- bf_hints_on(quiet)
   p <- bf_probe(url)
@@ -110,8 +140,8 @@ fetch <- function(url, destfile, quiet = FALSE, timeout = 3600, session = NULL,
     rm(list = host, envir = bf_clearance_cache)
   }
 
-  bf_with_browser(url, quiet = quiet, what = p, headed = headed, hints = hints,
-                  function(chrome) {
+  bf_with_browser(url, quiet = quiet, what = p, headed = headed,
+                  useragent = useragent, hints = hints, function(chrome) {
     if (!bf_needs_browser(bf_probe(url, chrome$clearance))) {
       bf_message(quiet, "  Passed; downloading with curl under the browser's clearance.")
       assign(host, chrome$clearance, envir = bf_clearance_cache)
@@ -123,10 +153,44 @@ fetch <- function(url, destfile, quiet = FALSE, timeout = 3600, session = NULL,
                "downloading under escort, in the browser",
                if (chrome$headed) " window, which stays open until it is done."
                else ".")
-    out <- bf_browser_download(chrome$session, url, destfile, quiet = quiet,
-                               timeout = timeout)
-    bf_hint_session(hints, url, "fetch", chrome)
-    out
+    used <- bf_escorted_download(chrome, url, destfile, quiet, timeout, hints)
+    bf_hint_session(hints, url, "fetch", used)
+    invisible(destfile)
+  })
+}
+
+# Download in the browser the host let through. In auto mode, should
+# headless Chrome not get through a check the host runs at the file's URL
+# within its wait, a window is opened and the download made there: the box
+# such a check shows can be clicked by the person at the window, which
+# headless Chrome has no one to do. Returns the browser the download was
+# made in, for the tips; a window opened here is closed before returning.
+bf_escorted_download <- function(chrome, url, destfile, quiet = FALSE,
+                                 timeout = 3600, hints = FALSE) {
+  fallback <- !chrome$headed && identical(chrome$mode, "auto")
+  tryCatch({
+    bf_browser_download(chrome$session, url, destfile, quiet = quiet,
+                        timeout = timeout, headed = chrome$headed,
+                        fallback = fallback, hints = hints)
+    chrome
+  }, safeconduct_not_passed = function(e) {
+    if (!fallback || !identical(e$reason, "timeout")) stop(e)
+    host <- bf_url_host(url)
+    bf_message(quiet, "  Headless Chrome did not get through the check at the ",
+               "file's URL; opening a window.", bf_window_note())
+    chrome$close()
+    window <- bf_open_attempt(url, TRUE, NULL, chrome$useragent)
+    if (inherits(window, "error")) stop(window)
+    on.exit(window$close(), add = TRUE)
+    window$fell_back <- TRUE
+    window$mode <- chrome$mode
+    window$useragent <- chrome$useragent
+    bf_hint(hints, paste0("headed:", host),
+      "a window is what gets through at '", host, "'; ",
+      "headed = TRUE goes straight to one next time.")
+    bf_browser_download(window$session, url, destfile, quiet = quiet,
+                        timeout = timeout, headed = TRUE)
+    window
   })
 }
 
@@ -161,7 +225,7 @@ fetch <- function(url, destfile, quiet = FALSE, timeout = 3600, session = NULL,
 #' }
 #' @export
 read_page <- function(url, session = NULL, quiet = FALSE, timeout = 120,
-                         headed = NULL) {
+                      headed = "auto", useragent = TRUE) {
   if (!is.null(session)) return(bf_session_read(session, url, quiet, timeout))
   hints <- bf_hints_on(quiet)
   p <- bf_probe(url)
@@ -174,8 +238,8 @@ read_page <- function(url, session = NULL, quiet = FALSE, timeout = 120,
     rm(list = host, envir = bf_clearance_cache)
   }
 
-  bf_with_browser(url, quiet = quiet, what = p, headed = headed, hints = hints,
-                  function(chrome) {
+  bf_with_browser(url, quiet = quiet, what = p, headed = headed,
+                  useragent = useragent, hints = hints, function(chrome) {
     if (!bf_needs_browser(bf_probe(url, chrome$clearance))) {
       bf_message(quiet, "  Passed; reading with curl under the browser's clearance.")
       assign(host, chrome$clearance, envir = bf_clearance_cache)
@@ -217,14 +281,14 @@ read_page <- function(url, session = NULL, quiet = FALSE, timeout = 120,
 #' }
 #' @export
 clearance <- function(url, refresh = FALSE, quiet = FALSE, wait = NULL,
-                      headed = NULL) {
+                      headed = "auto", useragent = TRUE) {
   host <- bf_url_host(url)
   if (!refresh) {
     cached <- bf_clearance_cache[[host]]
     if (!is.null(cached)) return(cached)
   }
   chrome <- bf_open_browser(url, quiet = quiet, wait = wait, headed = headed,
-                            hints = bf_hints_on(quiet))
+                            useragent = useragent, hints = bf_hints_on(quiet))
   chrome$close()
   assign(host, chrome$clearance, envir = bf_clearance_cache)
   chrome$clearance
@@ -245,20 +309,21 @@ clearance <- function(url, refresh = FALSE, quiet = FALSE, wait = NULL,
 #' }
 #' @export
 download_in_browser <- function(url, destfile, quiet = FALSE, timeout = 3600,
-                                headed = NULL) {
-  bf_with_browser(url, quiet = quiet, headed = headed, hints = bf_hints_on(quiet),
-                  function(chrome) {
-    bf_browser_download(chrome$session, url, destfile, quiet = quiet,
-                        timeout = timeout)
+                                headed = "auto", useragent = TRUE) {
+  hints <- bf_hints_on(quiet)
+  bf_with_browser(url, quiet = quiet, headed = headed, useragent = useragent,
+                  hints = hints, function(chrome) {
+    bf_escorted_download(chrome, url, destfile, quiet, timeout, hints)
+    invisible(destfile)
   })
 }
 
 # Open a browser on the host and run `fn(chrome)` in it; the browser is
 # closed afterwards whatever happens. `fn` may close it earlier itself.
 bf_with_browser <- function(url, fn, quiet = FALSE, wait = NULL, what = NULL,
-                            headed = NULL, hints = FALSE) {
+                            headed = "auto", useragent = TRUE, hints = FALSE) {
   chrome <- bf_open_browser(url, quiet = quiet, wait = wait, what = what,
-                            headed = headed, hints = hints)
+                            headed = headed, useragent = useragent, hints = hints)
   on.exit(chrome$close(), add = TRUE)
   invisible(fn(chrome))
 }
@@ -267,10 +332,12 @@ bf_with_browser <- function(url, fn, quiet = FALSE, wait = NULL, what = NULL,
 # Returns the launched browser with its `clearance` added, or raises
 # `safeconduct_unavailable` / `safeconduct_not_passed`. In "auto" mode a
 # headless attempt that ends on a check or a block is made again in a window.
-# `what` is the probe that brought the browser in, for the message; `hints`
-# whether tips may be shown (see `bf_hint()`).
+# `what` is the probe that brought the browser in, for the message;
+# `useragent` the string the browser is to announce (see
+# `bf_set_useragent()`); `hints` whether tips may be shown (see `bf_hint()`).
 bf_open_browser <- function(url, quiet = FALSE, wait = NULL, what = NULL,
-                            headed = NULL, hints = FALSE) {
+                            headed = "auto", useragent = TRUE, hints = FALSE) {
+  useragent <- bf_useragent_check(useragent)
   reason <- bf_browser_unavailable_reason()
   if (!is.null(reason)) {
     stop(bf_error("safeconduct_unavailable", paste0(
@@ -287,19 +354,25 @@ bf_open_browser <- function(url, quiet = FALSE, wait = NULL, what = NULL,
     if (headed) bf_window_note()
     else if (identical(mode, "auto")) "\n  Trying headless Chrome first."
     else "\n  Using headless Chrome.")
-  chrome <- bf_open_attempt(url, headed, wait)
+  chrome <- bf_open_attempt(url, headed, wait, useragent)
   if (inherits(chrome, "safeconduct_not_passed") && identical(mode, "auto")) {
+    blocked <- identical(chrome$reason, "blocked")
     bf_message(quiet, "  Headless Chrome did not get through; opening a window.",
                bf_window_note())
-    chrome <- bf_open_attempt(url, TRUE, wait)
+    chrome <- bf_open_attempt(url, TRUE, wait, useragent)
     if (!inherits(chrome, "error")) {
       chrome$fell_back <- TRUE
       bf_hint(hints, paste0("headed:", host),
         "a window is what gets through at '", host, "'; ",
-        "headed = TRUE goes straight to one next time.")
+        "headed = TRUE goes straight to one next time.",
+        if (blocked && is.null(useragent)) paste0(
+          "\n       Some hosts block headless Chrome on the word \"Headless\" in ",
+          "its user-agent string alone; useragent = TRUE drops the word."))
     }
   }
   if (inherits(chrome, "error")) stop(chrome)
+  chrome$useragent <- useragent
+  chrome$mode <- mode
   chrome
 }
 
@@ -312,7 +385,7 @@ bf_window_note <- function() {
 # condition after closing it. A window on a screen can be clicked by whoever
 # is at it, whether or not R is interactive, so its wait is for the person,
 # not the check; headless Chrome has no one to wait for.
-bf_open_attempt <- function(url, headed, wait = NULL) {
+bf_open_attempt <- function(url, headed, wait = NULL, useragent = TRUE) {
   wait <- wait %||% if (headed) 120 else 30
   chrome <- tryCatch(bf_launch_chrome(headed), error = function(e) {
     stop(bf_error("safeconduct_unavailable", paste0(
@@ -320,6 +393,7 @@ bf_open_attempt <- function(url, headed, wait = NULL) {
   })
   chrome$wait <- wait
   tryCatch({
+    bf_set_useragent(chrome$session, useragent)
     chrome$clearance <- bf_wait_pass(chrome$session, bf_host_root(url), wait)
     chrome
   }, safeconduct_not_passed = function(e) {

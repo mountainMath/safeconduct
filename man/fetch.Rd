@@ -10,7 +10,8 @@ fetch(
   quiet = FALSE,
   timeout = 3600,
   session = NULL,
-  headed = NULL
+  headed = "auto",
+  useragent = TRUE
 )
 }
 \arguments{
@@ -24,14 +25,27 @@ fetch(
 
 \item{session}{A browser session from \code{\link[=browser_session]{browser_session()}}. When given,
 the file is downloaded in that browser without any probing, and the
-browser stays open afterwards.}
+browser stays open afterwards; \code{headed} and \code{useragent} are then the
+session's. A browser that has gone away -- its window closed -- is
+opened again first.}
 
-\item{headed}{How to run the browser, when one is needed: \code{TRUE} for a
-window, \code{FALSE} for headless Chrome, or \code{"auto"} to try headless first
-and open a window only when the headless run does not get through, so
-that a window is shown only when someone may need to click. \code{NULL}, the
-default, takes the \code{safeconduct.headed} option, and failing that shows a
-window when there is a display.}
+\item{headed}{How to run the browser, when one is needed: \code{"auto"}, the
+default, tries headless Chrome first and opens a window only when the
+headless run does not get through, so that a window is shown only when
+someone may need to click; \code{TRUE} opens a window at once and \code{FALSE}
+never does. Without a display \code{"auto"} is headless. A host may run a
+second check at the file's URL, after the one at its root; headless
+Chrome has passed such a check with nothing clicked, but only after
+about two minutes, where a window shows a box that gets it through as
+soon as it is clicked. \code{"auto"} waits those minutes and opens a window
+if they pass without; \code{TRUE} skips the wait.}
+
+\item{useragent}{The user-agent string the browser announces. Headless
+Chrome's own calls it \code{HeadlessChrome}, and some hosts refuse it on that
+word alone. \code{TRUE}, the default, drops the word, so that the string says
+the Chrome version and platform it is and nothing it is not; \code{NULL}
+leaves Chrome's own string; a string is used as given. Set before the
+browser's first request, and what \code{\link[=clearance]{clearance()}} then reports.}
 }
 \value{
 \code{destfile}, invisibly. Errors are classed under
@@ -57,17 +71,21 @@ browser.
 Nothing is simulated. When the check shows a "Verify you are human" box,
 the window stays on screen for up to two minutes for the person at the
 screen to click it; nothing in this package clicks it for them.
+
+A file downloaded in the browser lands under \code{\link[=tempdir]{tempdir()}} and is moved to
+\code{destfile} when complete; nothing is written next to \code{destfile} meanwhile.
 }
 \section{Requirements}{
 
 A Chrome or Chromium installation, found by \code{\link[chromote:find_chrome]{chromote::find_chrome()}} (set
 the \code{CHROMOTE_CHROME} environment variable if it is somewhere unusual).
-A window is shown when there is a display; without one Chrome runs
-headless, which gets past a block but not, as of October 2026, a
-Cloudflare managed challenge. The \code{headed} argument overrides the guess
-about the display, and \code{options(safeconduct.headed = ...)} sets its
-default. Set \code{options(safeconduct.browser = FALSE)} to never open a
-browser. The window is 1000 by 800 pixels;
+By default Chrome runs headless first, and a window is opened only when
+the headless run ends on a check or a block and there is a display to
+show it on; the \code{headed} argument changes that. Headless Chrome under its
+own name does not pass a Cloudflare managed challenge, as of October
+2026, but with the word \code{Headless} dropped from its user-agent string,
+which is the default, it has. Set \code{options(safeconduct.browser = FALSE)}
+to never open a browser. The window is 1000 by 800 pixels;
 \code{options(safeconduct.window = c(width, height))} opens one of another size
 in pixels, and \code{"maximized"} a maximized one. Experimentally,
 \code{options(safeconduct.focus = "<css selector>")} pins the element that

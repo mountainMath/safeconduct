@@ -45,24 +45,19 @@ test_that("the focus script names the selector and can be switched off", {
   expect_match(bf_focus_script(), '("#challenge-stage", 1.5)', fixed = TRUE)
 })
 
-test_that("the headed mode follows the display and the option", {
+test_that("the headed mode follows the argument and the display", {
   local_mocked_bindings(bf_display_available = function() TRUE)
-  withr::local_options(safeconduct.headed = NULL)
-  expect_identical(bf_headed_mode(), "headed")
-  withr::local_options(safeconduct.headed = FALSE)
-  expect_identical(bf_headed_mode(), "headless")
-  withr::local_options(safeconduct.headed = TRUE)
-  expect_identical(bf_headed_mode(), "headed")
-  withr::local_options(safeconduct.headed = "auto")
   expect_identical(bf_headed_mode(), "auto")
+  expect_identical(bf_headed_mode("auto"), "auto")
+  expect_identical(bf_headed_mode(NULL), "auto")
+  expect_identical(bf_headed_mode(FALSE), "headless")
+  expect_identical(bf_headed_mode(TRUE), "headed")
+  expect_error(bf_headed_mode("yes"), "auto")
 
   local_mocked_bindings(bf_display_available = function() FALSE)
-  withr::local_options(safeconduct.headed = NULL)
   expect_identical(bf_headed_mode(), "headless")
-  withr::local_options(safeconduct.headed = "auto")
-  expect_identical(bf_headed_mode(), "headless")
-  withr::local_options(safeconduct.headed = TRUE)
-  expect_identical(bf_headed_mode(), "headed")
+  expect_identical(bf_headed_mode("auto"), "headless")
+  expect_identical(bf_headed_mode(TRUE), "headed")
 })
 
 cookies <- list(list(name = "cf_clearance", value = "abc"),
@@ -146,6 +141,27 @@ test_that("a browser download lands at its destination", {
   expect_identical(readLines(dest), "data")
   expect_false(file.exists(file.path(dir, "g1")))
   expect_true("navigate:https://example.org/file.zip" %in% s$calls)
+  # The browser lands the file under tempdir(), not next to the destination.
+  expect_identical(s$download_dir, file.path(tempdir(), "safeconduct"))
+  expect_false(file.exists(file.path(s$download_dir, "g1")))
+})
+
+test_that("a destination in a directory that does not exist is refused first", {
+  s <- fake_session()
+  expect_error(bf_browser_download(s, "https://example.org/file.zip",
+                                   "/no/such/dir/file.zip", quiet = TRUE),
+               "does not exist")
+  expect_length(s$calls, 0)
+})
+
+test_that("a finished download is moved into place, by rename or copy", {
+  dir <- withr::local_tempdir()
+  from <- file.path(dir, "guid"); to <- file.path(dir, "file.zip")
+  writeLines("data", from)
+  expect_true(bf_move_file(from, to))
+  expect_false(file.exists(from))
+  expect_identical(readLines(to), "data")
+  expect_false(bf_move_file(file.path(dir, "missing"), to))
 })
 
 test_that("a check at the file's URL runs and the download follows", {
@@ -160,6 +176,44 @@ test_that("a check at the file's URL runs and the download follows", {
   msgs <- capture_messages(bf_browser_download(s, "https://example.org/file.zip", dest))
   expect_match(paste(msgs, collapse = ""), "click the box")
   expect_identical(readLines(dest), "data")
+  s <- fake_session(events = list(
+    doc_event(403, challenge_headers),
+    doc_event(200, list(`content-type` = "application/zip"), mimeType = "application/zip"),
+    dl_event("completed", "g1", 20, 20)))
+  msgs <- capture_messages(bf_browser_download(s, "https://example.org/file.zip", dest,
+                                               headed = FALSE))
+  expect_match(paste(msgs, collapse = ""), "may take two minutes")
+  expect_match(paste(msgs, collapse = ""), "the download fails")
+  expect_no_match(paste(msgs, collapse = ""), "click the box")
+})
+
+test_that("a check at the file's URL still running after its wait is not passed", {
+  local_mocked_bindings(bf_check_wait = function(headed) 0.6)
+  reset_hints()
+  dir <- withr::local_tempdir()
+  dest <- file.path(dir, "file.zip")
+  s <- fake_session(events = rep(list(doc_event(403, challenge_headers)), 10))
+  msgs <- character()
+  err <- tryCatch(
+    withCallingHandlers(
+      bf_browser_download(s, "https://example.org/file.zip", dest, headed = FALSE,
+                          fallback = TRUE, hints = TRUE),
+      message = function(m) { msgs <<- c(msgs, conditionMessage(m)); invokeRestart("muffleMessage") }),
+    error = function(e) e)
+  expect_s3_class(err, "safeconduct_not_passed")
+  expect_identical(err$reason, "timeout")
+  expect_match(conditionMessage(err), "not passed within")
+  msgs <- paste(msgs, collapse = "")
+  expect_match(msgs, "a window is opened")
+  expect_match(msgs, "Tip: rather than wait, headed = TRUE")
+  expect_false(file.exists(dest))
+  # A window waits for its person and says nothing about waiting.
+  s <- fake_session(events = rep(list(doc_event(403, challenge_headers)), 10))
+  msgs <- paste(capture_messages(tryCatch(
+    bf_browser_download(s, "https://example.org/file.zip", dest, headed = TRUE),
+    error = function(e) NULL)), collapse = "")
+  expect_match(msgs, "click the box")
+  expect_no_match(msgs, "Tip:")
 })
 
 test_that("a block page at the file's URL ends the download at once", {
@@ -220,6 +274,49 @@ test_that("a resource is read in the browser", {
   expect_error(bf_browser_read(s, "https://example.org/feed.json"),
                "Failed to fetch", class = "safeconduct_download_error")
   s <- fake_session(read = NULL)
-  expect_error(bf_browser_read(s, "https://example.org/feed.json"),
-               class = "safeconduct_download_error")
+  expect_error(bf_browser_read(s, "https://example.org/feed.json", timeout = 7),
+               "no answer within 7 seconds", class = "safeconduct_download_error")
+})
+
+test_that("a read in a browser that has gone away says so", {
+  gone <- function(expr) stop("Session and underlying target have been closed.")
+  s <- fake_session(read = gone)
+  s$active <- FALSE
+  e <- expect_error(bf_browser_read(s, "https://example.org/feed.json"),
+                    "browser went away", class = "safeconduct_download_error")
+  expect_identical(e$reason, "gone")
+  # The protocol raised but the browser is still there: its own words.
+  s <- fake_session(read = function(expr) stop("Timeout waiting for response"))
+  e <- expect_error(bf_browser_read(s, "https://example.org/feed.json"),
+                    "Timeout waiting for response")
+  expect_null(e$reason)
+})
+
+test_that("a download in a browser that has gone away says so", {
+  s <- fake_session()
+  s$Browser$getVersion <- function() stop("Session has been closed.")
+  e <- expect_error(
+    bf_browser_download(s, "https://example.org/x.zip", withr::local_tempfile(), quiet = TRUE),
+    "browser went away", class = "safeconduct_download_error")
+  expect_identical(e$reason, "gone")
+})
+
+test_that("the user-agent string is left alone, trimmed of Headless, or set", {
+  headless_ua <- "Mozilla/5.0 (X11) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36"
+  s <- fake_session(ua = headless_ua)
+  bf_set_useragent(s, NULL)
+  expect_identical(s$ua, headless_ua)
+  expect_length(s$calls, 0L)
+  bf_set_useragent(s, TRUE)
+  expect_identical(s$ua, sub("HeadlessChrome/", "Chrome/", headless_ua))
+  expect_false(grepl("Headless", s$ua))
+  # A window's string has no Headless in it: nothing is overridden.
+  s <- fake_session(ua = "Mozilla/5.0 (fake) Chrome/155")
+  bf_set_useragent(s, TRUE)
+  expect_length(s$calls, 0L)
+  bf_set_useragent(s, "Custom/1")
+  expect_identical(s$ua, "Custom/1")
+  expect_error(bf_set_useragent(s, 1), "one string")
+  expect_error(bf_set_useragent(s, c("a", "b")), "one string")
+  expect_error(bf_set_useragent(s, ""), "one string")
 })
