@@ -1,8 +1,8 @@
 ---
-title: "Getting started with safeconduct"
+title: "Get started with safeconduct"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Getting started with safeconduct}
+  %\VignetteIndexEntry{Get started with safeconduct}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
