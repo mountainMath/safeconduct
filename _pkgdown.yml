@@ -1,0 +1,29 @@
+url: https://mountainmath.github.io/safeconduct/
+
+template:
+  bootstrap: 5
+  light-switch: true
+  params:
+    theme: arrow-light
+    theme-dark: arrow-dark
+
+reference:
+- title: Fetching
+  desc: Download a file, through a browser when the server insists on one.
+  contents:
+  - fetch
+  - download_in_browser
+- title: Clearance
+  desc: The browser's cookies and user agent, for requests you make yourself.
+  contents:
+  - clearance
+  - handle
+- title: Probing
+  desc: What a server serves at a URL, and whether it is a browser check.
+  contents:
+  - probe
+  - is_challenge
+  - browser_available
+- title: Package
+  contents:
+  - safeconduct-package

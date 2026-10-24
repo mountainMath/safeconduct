@@ -25,7 +25,7 @@ Imports:
 Suggests:
     testthat (>= 3.0.0),
     withr
-URL: https://github.com/mountainMath/safeconduct
+URL: https://mountainmath.github.io/safeconduct/, https://github.com/mountainMath/safeconduct
 BugReports: https://github.com/mountainMath/safeconduct/issues
 Config/testthat/edition: 3
 Roxygen: list(markdown = TRUE)
