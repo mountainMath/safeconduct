@@ -113,14 +113,14 @@ fetch <- function(url, destfile, quiet = FALSE, timeout = 3600, session = NULL,
   bf_with_browser(url, quiet = quiet, what = p, headed = headed, hints = hints,
                   function(chrome) {
     if (!bf_needs_browser(bf_probe(url, chrome$clearance))) {
-      bf_message(quiet, "  Passed; downloading.")
+      bf_message(quiet, "  Passed; downloading with curl under the browser's clearance.")
       assign(host, chrome$clearance, envir = bf_clearance_cache)
       chrome$close()
       return(bf_curl_download(url, destfile, quiet = quiet,
                               clearance = chrome$clearance))
     }
-    bf_message(quiet, "  Passed, but only for the browser; downloading in the ",
-               "browser",
+    bf_message(quiet, "  Passed, but the clearance does not transfer to curl; ",
+               "downloading under escort, in the browser",
                if (chrome$headed) " window, which stays open until it is done."
                else ".")
     out <- bf_browser_download(chrome$session, url, destfile, quiet = quiet,
@@ -156,11 +156,11 @@ fetch <- function(url, destfile, quiet = FALSE, timeout = 3600, session = NULL,
 #'   the error page. Errors are classed as [fetch()]'s are.
 #' @examples
 #' \dontrun{
-#' r <- fetch_memory("https://results.vancouver.ca/data/arearesults.json")
+#' r <- read_page("https://results.vancouver.ca/data/arearesults.json")
 #' jsonlite::fromJSON(rawToChar(r$content))
 #' }
 #' @export
-fetch_memory <- function(url, session = NULL, quiet = FALSE, timeout = 120,
+read_page <- function(url, session = NULL, quiet = FALSE, timeout = 120,
                          headed = NULL) {
   if (!is.null(session)) return(bf_session_read(session, url, quiet, timeout))
   hints <- bf_hints_on(quiet)
@@ -177,14 +177,15 @@ fetch_memory <- function(url, session = NULL, quiet = FALSE, timeout = 120,
   bf_with_browser(url, quiet = quiet, what = p, headed = headed, hints = hints,
                   function(chrome) {
     if (!bf_needs_browser(bf_probe(url, chrome$clearance))) {
-      bf_message(quiet, "  Passed; reading.")
+      bf_message(quiet, "  Passed; reading with curl under the browser's clearance.")
       assign(host, chrome$clearance, envir = bf_clearance_cache)
       chrome$close()
       return(bf_curl_fetch(url, chrome$clearance))
     }
-    bf_message(quiet, "  Passed, but only for the browser; reading in the browser.")
+    bf_message(quiet, "  Passed, but the clearance does not transfer to curl; ",
+               "reading under escort, in the browser.")
     out <- bf_browser_read(chrome$session, url, timeout = timeout)
-    bf_hint_session(hints, url, "fetch_memory", chrome)
+    bf_hint_session(hints, url, "read_page", chrome)
     out
   })
 }
@@ -193,7 +194,7 @@ fetch_memory <- function(url, session = NULL, quiet = FALSE, timeout = 120,
 #'
 #' Opens a Chrome on the host, lets any browser check run, and returns what
 #' the browser then holds: its user-agent string and its cookies, which
-#' [handle()] puts on a curl request. Whether the server then serves curl is
+#' [clearance_handle()] puts on a curl request. Whether the server then serves curl is
 #' the server's call -- see [fetch()], which falls back to downloading in the
 #' browser when it does not. A host that blocks plain clients without ever
 #' checking a browser yields a clearance all the same, with whatever cookies
@@ -212,7 +213,7 @@ fetch_memory <- function(url, session = NULL, quiet = FALSE, timeout = 120,
 #' @examples
 #' \dontrun{
 #' cl <- clearance("https://www12.statcan.gc.ca/")
-#' curl::curl_fetch_memory("https://www12.statcan.gc.ca/", handle(cl))
+#' curl::curl_fetch_memory("https://www12.statcan.gc.ca/", clearance_handle(cl))
 #' }
 #' @export
 clearance <- function(url, refresh = FALSE, quiet = FALSE, wait = NULL,
@@ -280,9 +281,9 @@ bf_open_browser <- function(url, quiet = FALSE, wait = NULL, what = NULL,
   headed <- identical(mode, "headed")
   host <- bf_url_host(url)
   bf_message(quiet,
-    if (isTRUE(what$challenged)) paste0("'", host, "' is asking for a browser check.")
-    else if (isTRUE(what$blocked)) paste0("'", host, "' refuses plain requests; trying a browser.")
-    else paste0("Opening a browser on '", host, "'."),
+    if (isTRUE(what$challenged)) paste0("'", host, "' is asking for a browser check; sending a browser through.")
+    else if (isTRUE(what$blocked)) paste0("'", host, "' turns plain requests away; sending a browser through.")
+    else paste0("Sending a browser through to '", host, "'."),
     if (headed) bf_window_note()
     else if (identical(mode, "auto")) "\n  Trying headless Chrome first."
     else "\n  Using headless Chrome.")
@@ -336,7 +337,7 @@ bf_probe <- function(url, clearance = NULL) probe(url, clearance)
 # behind. There is no overall timeout, but a transfer that stalls below a
 # kilobyte a second for two minutes is abandoned.
 bf_curl_download <- function(url, destfile, quiet = FALSE, clearance = NULL) {
-  h <- handle(clearance, connecttimeout = 60,
+  h <- clearance_handle(clearance, connecttimeout = 60,
               low_speed_limit = 1024, low_speed_time = 120)
   err <- NULL
   ok <- tryCatch({
@@ -353,11 +354,11 @@ bf_curl_download <- function(url, destfile, quiet = FALSE, clearance = NULL) {
   invisible(destfile)
 }
 
-# Fetch into memory with curl, in the shape `fetch_memory()` returns. Only a
+# Fetch into memory with curl, in the shape `read_page()` returns. Only a
 # failure to get any response is an error; an HTTP error status is returned.
 bf_curl_fetch <- function(url, clearance = NULL) {
   res <- tryCatch(
-    curl::curl_fetch_memory(url, handle(clearance, connecttimeout = 60)),
+    curl::curl_fetch_memory(url, clearance_handle(clearance, connecttimeout = 60)),
     error = function(e) {
       stop(bf_error("safeconduct_download_error", paste0(
         "Could not read '", url, "': ", conditionMessage(e))))

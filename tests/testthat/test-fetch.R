@@ -111,7 +111,7 @@ test_that("when the clearance does not carry over, the browser downloads", {
     })
   dest <- withr::local_tempfile()
   msgs <- capture_messages(fetch("https://example.org/x.zip", dest))
-  expect_match(paste(msgs, collapse = ""), "only for the browser")
+  expect_match(paste(msgs, collapse = ""), "under escort")
   expect_match(paste(msgs, collapse = ""), "window, which stays open")
   expect_identical(got, "https://example.org/x.zip")
   expect_true(chrome$is_closed())
@@ -131,9 +131,9 @@ test_that("a blocked URL is downloaded in the browser", {
     })
   dest <- withr::local_tempfile()
   msgs <- paste(capture_messages(fetch("https://example.org/x.zip", dest)), collapse = "")
-  expect_match(msgs, "refuses plain requests")
+  expect_match(msgs, "turns plain requests away")
   expect_match(msgs, "headless")
-  expect_match(msgs, "downloading in the browser\\.")
+  expect_match(msgs, "downloading under escort, in the browser\\.")
   expect_identical(got, "https://example.org/x.zip")
   expect_true(chrome$is_closed())
 })
@@ -231,22 +231,22 @@ test_that("download_in_browser() goes straight to the browser", {
   expect_true(chrome$is_closed())
 })
 
-test_that("fetch_memory() reads with curl where it can", {
+test_that("read_page() reads with curl where it can", {
   local_mocked_bindings(bf_probe = unchallenged,
                         bf_open_browser = function(...) stop("no browser wanted"))
-  r <- fetch_memory(local_source())
+  r <- read_page(local_source())
   expect_identical(r$status_code, 0L)
   expect_identical(rawToChar(r$content), "payload\n")
-  expect_error(fetch_memory("file:///no/such/file.json"),
+  expect_error(read_page("file:///no/such/file.json"),
                class = "safeconduct_download_error")
 })
 
-test_that("fetch_memory() reads in the browser where it must", {
+test_that("read_page() reads in the browser where it must", {
   reset_cache()
   withr::local_options(safeconduct.headed = TRUE)
   chrome <- local_passing_browser(fake_chrome(fake_session(read = read_result())))
   local_mocked_bindings(bf_probe = blocked)
-  r <- fetch_memory("https://example.org/feed.json", quiet = TRUE)
+  r <- read_page("https://example.org/feed.json", quiet = TRUE)
   expect_identical(r$status_code, 200L)
   expect_identical(rawToChar(r$content), '{"a":1}')
   expect_true(chrome$is_closed())
@@ -257,10 +257,10 @@ test_that("fetch_memory() reads in the browser where it must", {
   local_mocked_bindings(
     bf_probe = challenged_plain,
     bf_curl_fetch = function(url, clearance = NULL) list(url = url, clearance = clearance))
-  r <- fetch_memory("https://example.org/feed.json", quiet = TRUE)
+  r <- read_page("https://example.org/feed.json", quiet = TRUE)
   expect_s3_class(r$clearance, "safeconduct_clearance")
   expect_s3_class(bf_clearance_cache[["example.org"]], "safeconduct_clearance")
-  r <- fetch_memory("https://example.org/other.json", quiet = TRUE)
+  r <- read_page("https://example.org/other.json", quiet = TRUE)
   expect_identical(r$url, "https://example.org/other.json")
   reset_cache()
 })
@@ -353,10 +353,10 @@ test_that("a browser download and an auto fallback each leave a tip", {
   chrome <- fake_chrome(fake_session(read = read_result()))
   local_mocked_bindings(bf_launch_chrome = function(headed) chrome,
                         bf_wait_pass = function(session, url, timeout) a_clearance(url))
-  msgs <- paste(capture_messages(fetch_memory("https://example.org/feed.json", headed = TRUE)),
+  msgs <- paste(capture_messages(read_page("https://example.org/feed.json", headed = TRUE)),
                 collapse = "")
   expect_match(msgs, 'browser_session\\("https://example.org/"\\)')
-  expect_match(msgs, "fetch_memory\\(url, session = s\\)")
+  expect_match(msgs, "read_page\\(url, session = s\\)")
   expect_no_match(msgs, "headed = TRUE goes")
   reset_hints(); reset_cache()
 })

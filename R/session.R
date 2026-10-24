@@ -1,6 +1,6 @@
 # A browser kept open on a host.
 #
-# `fetch()` and `fetch_memory()` open and close a browser per call, which is
+# `fetch()` and `read_page()` open and close a browser per call, which is
 # right for a file now and then and wrong for a feed read every few minutes
 # all evening: a window per read, and a check per window. A session is the
 # browser kept open, on a page of the host, so that reads are made by that
@@ -11,7 +11,7 @@
 #' Keep a browser open on a host
 #'
 #' Opens a Chrome with a throwaway profile on the host, lets any browser
-#' check run, and keeps it open, for [fetch_memory()] and [fetch()] to use
+#' check run, and keeps it open, for [read_page()] and [fetch()] to use
 #' through their `session` argument. Close it with [close()]; a session that
 #' is not closed lives until the R session ends.
 #'
@@ -22,7 +22,7 @@
 #' @examples
 #' \dontrun{
 #' s <- browser_session("https://results.vancouver.ca/")
-#' r <- fetch_memory("https://results.vancouver.ca/data/arearesults.json",
+#' r <- read_page("https://results.vancouver.ca/data/arearesults.json",
 #'                   session = s)
 #' close(s)
 #' }
@@ -56,10 +56,11 @@ close.safeconduct_session <- function(con, ...) {
 
 #' @export
 print.safeconduct_session <- function(x, ...) {
-  cat("<safeconduct browser session on ", x$host, ", ",
-      if (x$headed) "a window" else "headless", ", opened ",
+  cat("<safeconduct session on '", x$host, "': ",
+      if (x$headed) "a Chrome window" else "headless Chrome",
+      if (isTRUE(x$open)) " escorting requests since " else ", opened ",
       format(x$time, "%Y-%m-%d %H:%M:%S"),
-      if (!isTRUE(x$open)) ", closed", ">\n", sep = "")
+      if (!isTRUE(x$open)) ", now closed", ">\n", sep = "")
   invisible(x)
 }
 
@@ -85,7 +86,7 @@ bf_session_read <- function(session, url, quiet = FALSE, timeout = 120) {
          call. = FALSE)
   r <- bf_browser_read(s$chrome$session, url, timeout = timeout)
   if (bf_needs_browser(bf_describe_response(r$status_code, r$headers, r$content))) {
-    bf_message(quiet, "'", s$host, "' is asking the browser for a check again; ",
+    bf_message(quiet, "'", s$host, "' is asking the escort for a check again; ",
                "passing it.")
     s$clearance <- bf_wait_pass(s$chrome$session, s$root, s$wait)
     r <- bf_browser_read(s$chrome$session, url, timeout = timeout)

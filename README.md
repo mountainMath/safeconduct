@@ -36,14 +36,14 @@ made to look like anything it is not.
 
 ## Pages and feeds
 
-`fetch_memory()` is `fetch()` for a page or a feed: the response comes back
+`read_page()` is `fetch()` for a page or a feed: the response comes back
 in memory, in the shape `curl::curl_fetch_memory()` returns, by the same
 route. For a feed that is read every few minutes, keep one browser open on
 the host instead of opening one per read:
 
 ```r
 s <- safeconduct::browser_session("https://results.vancouver.ca/")
-r <- safeconduct::fetch_memory("https://results.vancouver.ca/data/arearesults.json",
+r <- safeconduct::read_page("https://results.vancouver.ca/data/arearesults.json",
                                session = s)
 jsonlite::fromJSON(rawToChar(r$content))
 close(s)
@@ -105,7 +105,7 @@ The errors are classed under `safeconduct_error`:
 | `safeconduct_download_error` | the transfer failed |
 
 `clearance(url)` returns the browser's user-agent string and cookies for a
-host, and `handle(clearance)` puts them on a `curl` handle, for requests this
+host, and `clearance_handle(clearance)` puts them on a `curl` handle, for requests this
 package does not make itself. `probe(url)` says what a server serves at a URL,
 and whether it is a browser check (`is_challenge(headers)`) or a block page
 (`is_block(status, headers, body)`).

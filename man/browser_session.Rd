@@ -28,14 +28,14 @@ An object of class \code{safeconduct_session}. Its \code{clearance} is what
 }
 \description{
 Opens a Chrome with a throwaway profile on the host, lets any browser
-check run, and keeps it open, for \code{\link[=fetch_memory]{fetch_memory()}} and \code{\link[=fetch]{fetch()}} to use
+check run, and keeps it open, for \code{\link[=read_page]{read_page()}} and \code{\link[=fetch]{fetch()}} to use
 through their \code{session} argument. Close it with \code{\link[=close]{close()}}; a session that
 is not closed lives until the R session ends.
 }
 \examples{
 \dontrun{
 s <- browser_session("https://results.vancouver.ca/")
-r <- fetch_memory("https://results.vancouver.ca/data/arearesults.json",
+r <- read_page("https://results.vancouver.ca/data/arearesults.json",
                   session = s)
 close(s)
 }

@@ -62,8 +62,8 @@ test_that("an unreachable URL probes as unreachable", {
 })
 
 test_that("a handle takes a clearance", {
-  expect_s3_class(handle(), "curl_handle")
-  expect_s3_class(handle(a_clearance(), range = "0-0"), "curl_handle")
+  expect_s3_class(clearance_handle(), "curl_handle")
+  expect_s3_class(clearance_handle(a_clearance(), range = "0-0"), "curl_handle")
 })
 
 test_that("URLs are split as expected", {

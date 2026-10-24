@@ -109,7 +109,7 @@ bf_parse_headers <- function(headers) {
 #' @export
 probe <- function(url, clearance = NULL) {
   res <- tryCatch(
-    curl::curl_fetch_memory(url, handle(clearance, range = "0-0",
+    curl::curl_fetch_memory(url, clearance_handle(clearance, range = "0-0",
                                         maxfilesize = 1e6)),
     error = function(e) NULL)
   if (is.null(res)) {
@@ -158,9 +158,9 @@ bf_raw_text <- function(x) {
 #' @return A curl handle with `followlocation` set, and the clearance's
 #'   `useragent` and `cookie` when one was given.
 #' @examples
-#' h <- handle(list(useragent = "Mozilla/5.0", cookie = "cf_clearance=x"))
+#' h <- clearance_handle(list(useragent = "Mozilla/5.0", cookie = "cf_clearance=x"))
 #' @export
-handle <- function(clearance = NULL, ...) {
+clearance_handle <- function(clearance = NULL, ...) {
   h <- curl::new_handle(followlocation = TRUE, ...)
   if (!is.null(clearance)) {
     curl::handle_setopt(h, useragent = clearance$useragent,

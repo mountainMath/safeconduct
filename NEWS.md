@@ -11,12 +11,14 @@
   second or two as `safeconduct_not_passed`, instead of after the timeout.
 * `options(safeconduct.headed = "auto")` tries headless Chrome first and opens
   a window only when the headless run ends on a check or a block.
-* `fetch_memory()` reads a page or a feed into memory by the same route
+* `read_page()` reads a page or a feed into memory by the same route
   `fetch()` takes, reading in the browser where only the browser is served.
-* `browser_session()` keeps a browser open on a host for `fetch_memory()` and
+* `browser_session()` keeps a browser open on a host for `read_page()` and
   `fetch()` to use through their `session` argument, for a feed read every few
   minutes. A check the host asks for again meanwhile is passed and the read
   repeated.
+* `handle()` is now `clearance_handle()`, so that its name says what it carries
+  and does not read as curl's own.
 * `download_in_browser()` no longer waits for a clearance cookie before
   starting the transfer, and a check at the file's URL is let run.
 * `headed` is an argument of every function that may open a browser --

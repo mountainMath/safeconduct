@@ -16,7 +16,7 @@ test_that("a session is a browser kept open on a host, until closed", {
   expect_s3_class(s, "safeconduct_session")
   expect_identical(s$host, "example.org")
   expect_s3_class(s$clearance, "safeconduct_clearance")
-  expect_output(print(s), "example.org, a window")
+  expect_output(print(s), "example.org': a Chrome window escorting")
   expect_false(x$chrome$is_closed())
   close(s)
   expect_true(x$chrome$is_closed())
@@ -24,9 +24,9 @@ test_that("a session is a browser kept open on a host, until closed", {
   close(s)
   expect_error(fetch("https://example.org/x.zip", withr::local_tempfile(), session = s),
                "has been closed", class = "safeconduct_unavailable")
-  expect_error(fetch_memory("https://example.org/x.json", session = s),
+  expect_error(read_page("https://example.org/x.json", session = s),
                class = "safeconduct_unavailable")
-  expect_error(fetch_memory("https://example.org/x.json", session = "nope"),
+  expect_error(read_page("https://example.org/x.json", session = "nope"),
                "browser_session")
 })
 
@@ -41,12 +41,12 @@ test_that("a session downloads and reads in its browser without probing", {
   expect_identical(got$session, x$chrome$session)
   expect_identical(got$url, "https://example.org/x.zip")
 
-  r <- fetch_memory("https://example.org/feed.json", session = x$s)
+  r <- read_page("https://example.org/feed.json", session = x$s)
   expect_identical(rawToChar(r$content), '{"a":1}')
   expect_output(print(x$s), "headless")
   expect_false(x$chrome$is_closed())
 
-  expect_error(fetch_memory("https://other.example/feed.json", session = x$s),
+  expect_error(read_page("https://other.example/feed.json", session = x$s),
                "own host")
   close(x$s)
 })
@@ -66,7 +66,7 @@ test_that("a session passes the check again when the host asks", {
     expect_identical(url, "https://example.org/")
     bf_clearance(url, "UA", "cf_clearance=new")
   })
-  msgs <- capture_messages(r <- fetch_memory("https://example.org/feed.json", session = x$s))
+  msgs <- capture_messages(r <- read_page("https://example.org/feed.json", session = x$s))
   expect_match(paste(msgs, collapse = ""), "again")
   expect_identical(passed, 1L)
   expect_identical(r$status_code, 200L)

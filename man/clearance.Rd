@@ -32,7 +32,7 @@ An object of class \code{safeconduct_clearance}: a list with \code{host},
 \description{
 Opens a Chrome on the host, lets any browser check run, and returns what
 the browser then holds: its user-agent string and its cookies, which
-\code{\link[=handle]{handle()}} puts on a curl request. Whether the server then serves curl is
+\code{\link[=clearance_handle]{clearance_handle()}} puts on a curl request. Whether the server then serves curl is
 the server's call -- see \code{\link[=fetch]{fetch()}}, which falls back to downloading in the
 browser when it does not. A host that blocks plain clients without ever
 checking a browser yields a clearance all the same, with whatever cookies
@@ -43,6 +43,6 @@ the R session.
 \examples{
 \dontrun{
 cl <- clearance("https://www12.statcan.gc.ca/")
-curl::curl_fetch_memory("https://www12.statcan.gc.ca/", handle(cl))
+curl::curl_fetch_memory("https://www12.statcan.gc.ca/", clearance_handle(cl))
 }
 }

@@ -320,8 +320,8 @@ bf_wait_pass <- function(session, url, timeout) {
     }
     if (identical(kind, "block")) {
       stop(bf_error("safeconduct_not_passed", paste0(
-        "'", bf_url_host(url), "' blocks this browser too; nothing more can ",
-        "be done from here."), reason = "blocked"))
+        "'", bf_url_host(url), "' blocks this browser too; there is no safe ",
+        "conduct to be had here."), reason = "blocked"))
     }
     if (Sys.time() > deadline) {
       stop(bf_error("safeconduct_not_passed", paste0(
@@ -347,7 +347,7 @@ bf_clearance <- function(url, useragent, cookie) {
 
 #' @export
 print.safeconduct_clearance <- function(x, ...) {
-  cat("<safeconduct clearance for ", x$host, ", ",
+  cat("<safeconduct clearance for '", x$host, "', issued ",
       format(x$time, "%Y-%m-%d %H:%M:%S"), ">\n", sep = "")
   cat("  user agent: ", x$useragent, "\n", sep = "")
   names <- if (nzchar(x$cookie)) sub("=.*", "", strsplit(x$cookie, "; ")[[1]])

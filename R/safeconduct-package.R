@@ -73,7 +73,7 @@ bf_hint <- function(hints, key, ...) {
   invisible(TRUE)
 }
 
-# The session tip, for `fetch()` and `fetch_memory()`, naming the mode that
+# The session tip, for `fetch()` and `read_page()`, naming the mode that
 # worked when it had to be found out.
 bf_hint_session <- function(hints, url, fn, chrome) {
   host <- bf_url_host(url)

@@ -12,7 +12,7 @@ reference:
   desc: Download a file or read a page, through a browser when the server insists on one.
   contents:
   - fetch
-  - fetch_memory
+  - read_page
   - download_in_browser
 - title: Sessions
   desc: A browser kept open on a host, for a feed read every few minutes.
@@ -22,7 +22,7 @@ reference:
   desc: The browser's cookies and user agent, for requests you make yourself.
   contents:
   - clearance
-  - handle
+  - clearance_handle
 - title: Probing
   desc: What a server serves at a URL, and whether it is a browser check or a block.
   contents:
