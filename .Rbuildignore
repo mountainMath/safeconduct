@@ -7,3 +7,5 @@
 ^docs$
 ^hexsticker\.R$
 ^pkgdown$
+^doc$
+^Meta$

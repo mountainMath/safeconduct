@@ -24,8 +24,11 @@ Imports:
     jsonlite,
     processx
 Suggests:
+    knitr,
+    rmarkdown,
     testthat (>= 3.0.0),
     withr
+VignetteBuilder: knitr
 URL: https://mountainmath.github.io/safeconduct/, https://github.com/mountainMath/safeconduct
 BugReports: https://github.com/mountainMath/safeconduct/issues
 Config/testthat/edition: 3
