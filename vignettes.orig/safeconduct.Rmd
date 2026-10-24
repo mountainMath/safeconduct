@@ -1,0 +1,222 @@
+---
+title: "Get started with safeconduct"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Get started with safeconduct}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+Some servers refuse any request that does not come from a web browser. The
+file is there, a browser gets it, and `download.file()`, `curl` and anything
+built on them get a `403` page instead. This vignette walks through two such
+files, one behind each kind of refusal that Cloudflare makes, shows what a
+plain request gets, and shows how `safeconduct::fetch()` gets the file.
+
+The chunks below were run when this vignette was precomputed, not when the
+package is built: they need a Chrome and a network, and what a server does
+at a URL changes over time. The output shown was captured on `r Sys.Date()`.
+
+## Two ways to be refused
+
+Cloudflare, the common case, refuses in two ways:
+
+* **A browser check.** The `403` page carries the header `cf-mitigated:
+  challenge` and runs a script. A browser that runs the script is given a
+  `cf_clearance` cookie and reloaded, and from then on it is served. Sometimes
+  the script shows a "Verify you are human" box for the person to click.
+* **A block.** The `403` page says "Sorry, you have been blocked" and sets
+  nothing, because the rule is about what the client looks like: its address,
+  its user-agent string, how it speaks TLS. There is nothing to pass; a client
+  the rule covers is refused every time.
+
+`safeconduct::fetch(url, destfile)` first makes the plain request. If the
+file comes, that is the end of it and no browser is involved. If the answer
+is a check or a block, it opens a real Chrome with a throwaway profile on the
+host, lets any check run, and downloads the file: through `curl` carrying the
+cookies the browser was given where the server accepts that, and in the
+browser itself where it does not. Nothing is simulated, and nothing is
+clicked on anyone's behalf.
+
+## Setup
+
+```{r, eval = FALSE}
+# install.packages("pak")
+pak::pak("mountainMath/safeconduct")
+```
+
+A Chrome or Chromium has to be installed; `chromote::find_chrome()` finds
+it, and the `CHROMOTE_CHROME` environment variable points at one somewhere
+unusual. `browser_available()` says whether a browser can be opened here,
+and why not if not.
+
+```{r}
+safeconduct::browser_available()
+```
+
+## A browser check: a Statistics Canada correspondence file
+
+On October 2, 2026 StatCan moved a bunch of their data behind a Cloudflare
+browser check, breaking reproducible analysis. **safeconduct** provides a way
+to navigate around this in interactive sessions, but it cannot help where no
+one can click, say in a Docker container, should the check insist on a click.
+
+A simple example is the 2021 Census correspondence file for dissemination
+areas, which establishes the correspondence between 2016 and 2021
+dissemination areas. It is a 3.6 MB zip on www12.statcan.gc.ca.
+
+```{r, error = TRUE}
+url <- "https://www12.statcan.gc.ca/census-recensement/2021/geo/aip-pia/correspondence-correspondance/files-fichiers/2021_92-156-X_DA_AD.zip"
+da_ad_zip <- file.path(tempdir(), "da_ad.zip")
+download.file(url, da_ad_zip, mode = "wb")
+```
+
+Nothing was written. The reported length is that of the check page, not of
+the zip. `curl` says the status outright:
+
+```{r, error = TRUE}
+curl::curl_download(url, da_ad_zip)
+```
+
+If we are interested in why the download failed, `probe()` makes the same
+plain request and reports on the type of refusal:
+
+```{r}
+p <- safeconduct::probe(url)
+str(p[c("status", "challenged", "blocked", "type")])
+p$headers[["cf-mitigated"]]
+```
+
+The `fetch()` function is the universal access point for **safeconduct**: it
+navigates a wide variety of traffic-blocking environments.
+
+```{r}
+safeconduct::fetch(url, da_ad_zip)
+```
+
+Each line is a step. Headless Chrome was opened on the host and passed the
+check at the site's root within a few seconds. The cookies it was given were
+tried on a plain request for the file, which was refused again, so the
+download runs in the browser. The browser was then sent to the file's URL,
+where this host runs a second check before it serves the file. Headless
+Chrome passes that one too, with nothing clicked, but Cloudflare holds it
+for about two minutes first; the download takes a second after that, and
+the call returns the destination file, invisibly. Had the two minutes
+passed without, a window would have been opened and the download made there.
+
+The first tip is about that wait. In a window the same check shows a
+"Verify you are human" box, and the file is through a few seconds after the
+box is clicked: `fetch(url, da_ad_zip, headed = TRUE)` took ten seconds in
+all when this was captured, click included. Which to prefer depends on
+whether someone is at the screen. The second tip is taken up below, under
+what to expect at the console.
+
+```{r}
+unzip(da_ad_zip, list = TRUE)
+da_ad <- read.csv(unz(da_ad_zip, "2021_92-156-X_DA_AD/2021_92-156-X_DA_AD.csv"))
+dim(da_ad)
+names(da_ad)
+```
+
+## A block: Vancouver election results from the open data portal
+
+The City of Vancouver's open data portal lists its election results, but the
+files themselves are on another host. The portal's API gives the link:
+
+```{r}
+api <- "https://opendata.vancouver.ca/api/explore/v2.1/catalog/datasets/municipal-election-results/records?limit=20"
+elections <- jsonlite::fromJSON(api)$results
+url <- elections$link_to_csv[elections$election == "2026 Municipal Election"]
+url
+```
+
+(`VancouvR::get_cov_data("municipal-election-results")` returns the same
+table.) The portal answers a plain request; the file's host does not:
+
+```{r, error = TRUE}
+results_zip <- file.path(tempdir(), "results.zip")
+download.file(url, results_zip, mode = "wb")
+```
+
+```{r}
+p <- safeconduct::probe(url)
+str(p[c("status", "challenged", "blocked", "type")])
+```
+
+This time there is no `cf-mitigated` header and no script. The page is
+titled "Attention Required! | Cloudflare" and says "Sorry, you have been
+blocked": a rule on this host refuses the client, and `curl` is refused
+whatever it sends. A browser is not covered by the rule, and it goes through
+at once:
+
+```{r}
+safeconduct::fetch(url, results_zip)
+```
+
+That took three seconds. There was no check to wait for; the browser was
+simply served. The cookies it was given do not make `curl` acceptable to the
+rule either, so the download runs in the browser as before.
+
+```{r}
+unzip(results_zip, list = TRUE)[1:2]
+```
+
+The same rule covers headless Chrome under its own name, which announces
+itself as `HeadlessChrome` in its user-agent string: the hosts in this
+example refuse it on that word alone and serve the same headless Chrome once
+the word is gone. By default the package drops the word and nothing else, so
+the string still names the Chrome version and platform it is. The
+`useragent` argument takes `NULL` to leave Chrome's own string, at the price
+of a window on hosts like these, or a string to use as given.
+
+## What to expect at the console
+
+**A window, sometimes.** Headless Chrome goes first, and a window is opened
+only when the headless run ends on a check or a block it does not get past,
+or on a check at the file's URL it has not passed in two minutes, and only
+when there is a display to show it on. The window is a plain Chrome; when
+the check shows a "Verify you are human" box, the window stays on screen for
+up to two minutes for the person at the screen to click it. `headed = TRUE`
+opens a window at once and `headed = FALSE` never does. The argument is on
+every function that may open a browser.
+
+**Nothing in the working directory.** A file downloaded in the browser lands
+under `tempdir()` and is moved to its destination when complete.
+
+**Fewer browsers over time.** Where the server accepts the browser's cookies
+on a plain request, they are kept for the rest of the R session and later
+files from the same host need no browser. Neither host above accepts that,
+so each `fetch()` there opens a browser. For several files or reads from one
+host, open a browser once and pass it along:
+
+```{r}
+s <- safeconduct::browser_session("https://webtransfer.vancouver.ca/")
+safeconduct::fetch(elections$link_to_csv[elections$election == "2022 Municipal Election"],
+                   file.path(tempdir(), "results_2022.zip"), session = s)
+safeconduct::fetch(elections$link_to_csv[elections$election == "2018 Municipal Election"],
+                   file.path(tempdir(), "results_2018.zip"), session = s)
+close(s)
+```
+
+A session's browser is reopened if it goes away, say because its window was
+closed. `read_page(url)` is `fetch()` for a page or a feed: the response
+comes back in memory, in the shape `curl::curl_fetch_memory()` returns, and
+it takes a session the same way.
+
+**Tips, once per host.** When a host has been found to need a window or the
+browser for the transfer, a message says how to skip the finding out next
+time. `quiet = TRUE` silences the progress messages and the tips.
+
+**When a browser is not enough.** A server that blocks the browser too, say
+by address, is reported within a second or two as a `safeconduct_not_passed`
+error; a check that is not passed within its wait is the same class. Where
+no browser can be opened at all, the error is `safeconduct_unavailable` and
+its message says what is missing. `options(safeconduct.browser = FALSE)`
+never opens a browser, for code that would rather tell its user to download
+by hand. The function reference has the rest: `clearance()` for the cookies
+and user-agent string to use in requests you make yourself, and `probe()`,
+`is_challenge()` and `is_block()` for telling the refusals apart.

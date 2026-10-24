@@ -9,3 +9,9 @@ inst/doc
 /Meta/
 vignettes/*.html
 vignettes/*.R
+
+# Output of knitting a vignette source in place, precompute.R knits into vignettes/
+vignettes.orig/*.png
+vignettes.orig/*.html
+vignettes.orig/*.md
+vignettes.orig/*_files/

@@ -6,10 +6,10 @@ vignette: >
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
+<!-- Generated from vignettes.orig/safeconduct.Rmd -- do not edit. -->
+<!-- Rebuild with: Rscript vignettes.orig/precompute.R -->
 
-```{r, include = FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
-```
+
 
 Some servers refuse any request that does not come from a web browser. The
 file is there, a browser gets it, and `download.file()`, `curl` and anything
@@ -17,9 +17,9 @@ built on them get a `403` page instead. This vignette walks through two such
 files, one behind each kind of refusal that Cloudflare makes, shows what a
 plain request gets, and shows how `safeconduct::fetch()` gets the file.
 
-The chunks below are not run when the package is built: they need a Chrome
-and a network, and what a server does at a URL changes over time. The output
-shown was captured on 2026-10-24.
+The chunks below were run when this vignette was precomputed, not when the
+package is built: they need a Chrome and a network, and what a server does
+at a URL changes over time. The output shown was captured on 2026-10-24.
 
 ## Two ways to be refused
 
@@ -44,7 +44,8 @@ clicked on anyone's behalf.
 
 ## Setup
 
-```{r}
+
+``` r
 # install.packages("pak")
 pak::pak("mountainMath/safeconduct")
 ```
@@ -54,7 +55,8 @@ it, and the `CHROMOTE_CHROME` environment variable points at one somewhere
 unusual. `browser_available()` says whether a browser can be opened here,
 and why not if not.
 
-```{r}
+
+``` r
 safeconduct::browser_available()
 #> [1] TRUE
 ```
@@ -70,29 +72,36 @@ A simple example is the 2021 Census correspondence file for dissemination
 areas, which establishes the correspondence between 2016 and 2021
 dissemination areas. It is a 3.6 MB zip on www12.statcan.gc.ca.
 
-```{r}
+
+``` r
 url <- "https://www12.statcan.gc.ca/census-recensement/2021/geo/aip-pia/correspondence-correspondance/files-fichiers/2021_92-156-X_DA_AD.zip"
 da_ad_zip <- file.path(tempdir(), "da_ad.zip")
 download.file(url, da_ad_zip, mode = "wb")
-#> trying URL 'https://www12.statcan.gc.ca/census-recensement/2021/geo/aip-pia/correspondence-correspondance/files-fichiers/2021_92-156-X_DA_AD.zip'
-#> Warning in download.file(url, da_ad_zip, mode = "wb") :
-#>   downloaded length 0 != reported length 21894
+#> Warning in download.file(url, da_ad_zip, mode = "wb"): downloaded length 0 !=
+#> reported length 21894
+#> Warning in download.file(url, da_ad_zip, mode = "wb"): cannot open URL
+#> 'https://www12.statcan.gc.ca/census-recensement/2021/geo/aip-pia/correspondence-correspondance/files-fichiers/2021_92-156-X_DA_AD.zip':
+#> HTTP status was '403 Forbidden'
+#> Error in `download.file()`:
+#> ! cannot open URL 'https://www12.statcan.gc.ca/census-recensement/2021/geo/aip-pia/correspondence-correspondance/files-fichiers/2021_92-156-X_DA_AD.zip'
 ```
 
 Nothing was written. The reported length is that of the check page, not of
 the zip. `curl` says the status outright:
 
-```{r}
+
+``` r
 curl::curl_download(url, da_ad_zip)
-#> Error in curl::curl_download(url, da_ad_zip) :
-#>   HTTP response code said error [www12.statcan.gc.ca]:
+#> Error in `curl::curl_download()`:
+#> ! HTTP response code said error [www12.statcan.gc.ca]:
 #> The requested URL returned error: 403
 ```
 
 If we are interested in why the download failed, `probe()` makes the same
 plain request and reports on the type of refusal:
 
-```{r}
+
+``` r
 p <- safeconduct::probe(url)
 str(p[c("status", "challenged", "blocked", "type")])
 #> List of 4
@@ -107,7 +116,8 @@ p$headers[["cf-mitigated"]]
 The `fetch()` function is the universal access point for **safeconduct**: it
 navigates a wide variety of traffic-blocking environments.
 
-```{r}
+
+``` r
 safeconduct::fetch(url, da_ad_zip)
 #> 'www12.statcan.gc.ca' is asking for a browser check; sending a browser through.
 #>   Trying headless Chrome first.
@@ -115,6 +125,10 @@ safeconduct::fetch(url, da_ad_zip)
 #>   The server is asking for a browser check at the file's URL first; headless Chrome passes it without a click, but it may take two minutes.
 #>   If it has not passed by then, a window is opened.
 #>   Tip: rather than wait, headed = TRUE opens a window at once, where the check shows its box to click.
+#>   Tip: for more from 'www12.statcan.gc.ca', keep one browser open instead of one per call:
+#>        s <- browser_session("https://www12.statcan.gc.ca/")
+#>        fetch(url, destfile, session = s)
+#>        close(s)
 ```
 
 Each line is a step. Headless Chrome was opened on the host and passed the
@@ -127,13 +141,15 @@ for about two minutes first; the download takes a second after that, and
 the call returns the destination file, invisibly. Had the two minutes
 passed without, a window would have been opened and the download made there.
 
-The tip is about that wait. In a window the same check shows a "Verify you
-are human" box, and the file is through a few seconds after the box is
-clicked: `fetch(url, da_ad_zip, headed = TRUE)` took ten seconds in all
-when this was captured, click included. Which to prefer depends on whether
-someone is at the screen.
+The first tip is about that wait. In a window the same check shows a
+"Verify you are human" box, and the file is through a few seconds after the
+box is clicked: `fetch(url, da_ad_zip, headed = TRUE)` took ten seconds in
+all when this was captured, click included. Which to prefer depends on
+whether someone is at the screen. The second tip is taken up below, under
+what to expect at the console.
 
-```{r}
+
+``` r
 unzip(da_ad_zip, list = TRUE)
 #>                                          Name   Length                Date
 #> 1 2021_92-156-X_DA_AD/2021_92-156-X_DA_AD.csv 44914832 2021-08-12 16:18:00
@@ -141,8 +157,9 @@ da_ad <- read.csv(unz(da_ad_zip, "2021_92-156-X_DA_AD/2021_92-156-X_DA_AD.csv"))
 dim(da_ad)
 #> [1] 499052      7
 names(da_ad)
-#> [1] "DAUID2021_ADIDU2021"     "DAUID2016_ADIDU2016"     "DBUID2021_IDIDU2021"
-#> [4] "DARELFLAG_ADINDREL"      "DADGUID2021_ADIDUGD2021" "DADGUID2016_ADIDUGD2016"
+#> [1] "DAUID2021_ADIDU2021"     "DAUID2016_ADIDU2016"    
+#> [3] "DBUID2021_IDIDU2021"     "DARELFLAG_ADINDREL"     
+#> [5] "DADGUID2021_ADIDUGD2021" "DADGUID2016_ADIDUGD2016"
 #> [7] "DBDGUID2021_IDIDUGD2021"
 ```
 
@@ -151,7 +168,8 @@ names(da_ad)
 The City of Vancouver's open data portal lists its election results, but the
 files themselves are on another host. The portal's API gives the link:
 
-```{r}
+
+``` r
 api <- "https://opendata.vancouver.ca/api/explore/v2.1/catalog/datasets/municipal-election-results/records?limit=20"
 elections <- jsonlite::fromJSON(api)$results
 url <- elections$link_to_csv[elections$election == "2026 Municipal Election"]
@@ -162,18 +180,19 @@ url
 (`VancouvR::get_cov_data("municipal-election-results")` returns the same
 table.) The portal answers a plain request; the file's host does not:
 
-```{r}
+
+``` r
 results_zip <- file.path(tempdir(), "results.zip")
 download.file(url, results_zip, mode = "wb")
-#> trying URL 'https://webtransfer.vancouver.ca/OpenData/csv/2026MunicipalElectionResults.zip'
-#> Error in download.file(url, results_zip, mode = "wb") :
-#>   cannot open URL 'https://webtransfer.vancouver.ca/OpenData/csv/2026MunicipalElectionResults.zip'
-#> In addition: Warning message:
-#> In download.file(url, results_zip, mode = "wb") :
-#>   cannot open URL 'https://webtransfer.vancouver.ca/OpenData/csv/2026MunicipalElectionResults.zip': HTTP status was '403 Forbidden'
+#> Warning in download.file(url, results_zip, mode = "wb"): cannot open URL
+#> 'https://webtransfer.vancouver.ca/OpenData/csv/2026MunicipalElectionResults.zip':
+#> HTTP status was '403 Forbidden'
+#> Error in `download.file()`:
+#> ! cannot open URL 'https://webtransfer.vancouver.ca/OpenData/csv/2026MunicipalElectionResults.zip'
 ```
 
-```{r}
+
+``` r
 p <- safeconduct::probe(url)
 str(p[c("status", "challenged", "blocked", "type")])
 #> List of 4
@@ -189,18 +208,24 @@ blocked": a rule on this host refuses the client, and `curl` is refused
 whatever it sends. A browser is not covered by the rule, and it goes through
 at once:
 
-```{r}
+
+``` r
 safeconduct::fetch(url, results_zip)
 #> 'webtransfer.vancouver.ca' turns plain requests away; sending a browser through.
 #>   Trying headless Chrome first.
 #>   Passed, but the clearance does not transfer to curl; downloading under escort, in the browser.
+#>   Tip: for more from 'webtransfer.vancouver.ca', keep one browser open instead of one per call:
+#>        s <- browser_session("https://webtransfer.vancouver.ca/")
+#>        fetch(url, destfile, session = s)
+#>        close(s)
 ```
 
 That took three seconds. There was no check to wait for; the browser was
 simply served. The cookies it was given do not make `curl` acceptable to the
 rule either, so the download runs in the browser as before.
 
-```{r}
+
+``` r
 unzip(results_zip, list = TRUE)[1:2]
 #>                                                       Name Length
 #> 1      2026MunicipalElectionsResult_Election2026Totals.csv   6778
@@ -242,8 +267,11 @@ files from the same host need no browser. Neither host above accepts that,
 so each `fetch()` there opens a browser. For several files or reads from one
 host, open a browser once and pass it along:
 
-```{r}
+
+``` r
 s <- safeconduct::browser_session("https://webtransfer.vancouver.ca/")
+#> Sending a browser through to 'webtransfer.vancouver.ca'.
+#>   Trying headless Chrome first.
 safeconduct::fetch(elections$link_to_csv[elections$election == "2022 Municipal Election"],
                    file.path(tempdir(), "results_2022.zip"), session = s)
 safeconduct::fetch(elections$link_to_csv[elections$election == "2018 Municipal Election"],
