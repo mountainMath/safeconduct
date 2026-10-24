@@ -1,4 +1,4 @@
-# safeconduct
+# safeconduct <img src="man/figures/logo.png" align="right" height="138" alt="safeconduct hex sticker" />
 
 The goal of **safeconduct** is to handle file download or webpage access in situations when a plain request is refused. It strives to handle a variety of different situations in a way that minimize the need for user interactions via a simple interface that abstracts complications away.
 
