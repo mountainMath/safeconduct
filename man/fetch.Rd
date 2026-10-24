@@ -4,7 +4,14 @@
 \alias{fetch}
 \title{Download a file, through a browser if the server insists on one}
 \usage{
-fetch(url, destfile, quiet = FALSE, timeout = 3600)
+fetch(
+  url,
+  destfile,
+  quiet = FALSE,
+  timeout = 3600,
+  session = NULL,
+  headed = NULL
+)
 }
 \arguments{
 \item{url}{The file's URL.}
@@ -14,23 +21,37 @@ fetch(url, destfile, quiet = FALSE, timeout = 3600)
 \item{quiet}{Suppress progress messages.}
 
 \item{timeout}{Seconds a transfer in the browser may take.}
+
+\item{session}{A browser session from \code{\link[=browser_session]{browser_session()}}. When given,
+the file is downloaded in that browser without any probing, and the
+browser stays open afterwards.}
+
+\item{headed}{How to run the browser, when one is needed: \code{TRUE} for a
+window, \code{FALSE} for headless Chrome, or \code{"auto"} to try headless first
+and open a window only when the headless run does not get through, so
+that a window is shown only when someone may need to click. \code{NULL}, the
+default, takes the \code{safeconduct.headed} option, and failing that shows a
+window when there is a display.}
 }
 \value{
 \code{destfile}, invisibly. Errors are classed under
 \code{safeconduct_error}: \code{safeconduct_unavailable} when no browser can be
 opened here (its message says what is missing),
-\code{safeconduct_not_passed} when the check was not passed in time, and
-\code{safeconduct_download_error} when the transfer itself failed.
+\code{safeconduct_not_passed} when the check was not passed in time or the
+server blocks the browser as well, and \code{safeconduct_download_error}
+when the transfer itself failed.
 }
 \description{
 Fetches \code{url} to \code{destfile}. A server that serves the file to a plain
 request is fetched with curl and no browser is involved. A server that
-answers with a browser check (see \code{\link[=is_challenge]{is_challenge()}}) gets one: a Chrome
-window with a throwaway profile is opened, the check runs, and the file is
-then downloaded, through curl carrying the clearance the browser was
-given where the server accepts that, and in the browser window itself
-where it does not. A clearance that curl can use is kept for the rest of
-the session, so later files from the same host need no window.
+refuses a plain request in a way a browser gets past -- a browser check
+(see \code{\link[=is_challenge]{is_challenge()}}) or a block page (see \code{\link[=is_block]{is_block()}}) -- gets one: a
+Chrome with a throwaway profile is opened on the host, the check runs if
+there is one, and the file is then downloaded, through curl carrying the
+clearance the browser was given where the server accepts that, and in the
+browser itself where it does not. A clearance that curl can use is kept
+for the rest of the R session, so later files from the same host need no
+browser.
 }
 \details{
 Nothing is simulated. When the check shows a "Verify you are human" box,
@@ -40,16 +61,31 @@ screen to click it; nothing in this package clicks it for them.
 \section{Requirements}{
 
 A Chrome or Chromium installation, found by \code{\link[chromote:find_chrome]{chromote::find_chrome()}} (set
-the \code{CHROMOTE_CHROME} environment variable if it is somewhere unusual),
-and a display to show the window on. Without a display Chrome is run
-headless, which, as of October 2026, Cloudflare's check does not pass.
-Set \code{options(safeconduct.browser = FALSE)} to never open a browser, and
-\code{options(safeconduct.headed = TRUE)} or \code{FALSE} to override the guess
-about the display. The window is 1000 by 800 pixels;
+the \code{CHROMOTE_CHROME} environment variable if it is somewhere unusual).
+A window is shown when there is a display; without one Chrome runs
+headless, which gets past a block but not, as of October 2026, a
+Cloudflare managed challenge. The \code{headed} argument overrides the guess
+about the display, and \code{options(safeconduct.headed = ...)} sets its
+default. Set \code{options(safeconduct.browser = FALSE)} to never open a
+browser. The window is 1000 by 800 pixels;
 \code{options(safeconduct.window = c(width, height))} opens one of another size
-in pixels, and \code{"maximized"} a maximized one. Experimentally, \code{options(safeconduct.focus = "<css selector>")} pins the element that holds the check to the window's top
-left corner, enlarged by \code{options(safeconduct.zoom)} (1.5 by default), and
-hides the rest of the page; unset, the page is shown as it is.
+in pixels, and \code{"maximized"} a maximized one. Experimentally,
+\code{options(safeconduct.focus = "<css selector>")} pins the element that
+holds the check to the window's top left corner, enlarged by
+\code{options(safeconduct.zoom)} (1.5 by default), and hides the rest of the
+page; unset, the page is shown as it is.
+}
+
+\section{Tips}{
+
+At the console, in an interactive session, once a host has been found to
+need a window or the browser for the transfer, a tip says how to skip the
+finding out next time: \code{headed = TRUE}, or a \code{\link[=browser_session]{browser_session()}} for
+several files or reads from the host. A tip is shown once per host and R
+session, and never when \code{quiet} is \code{TRUE}. Calls made from another
+package get no tips, since that package's user cannot act on them; nothing
+needs to be set for that. The tips are messages with the class
+\code{safeconduct_hint} as well, should anyone want to muffle them.
 }
 
 \examples{

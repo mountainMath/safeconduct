@@ -15,10 +15,11 @@ that earned it; \code{NULL} probes as a plain client.}
 \value{
 A list: \code{reachable} (was any response had), \code{status} (the HTTP
 status, \code{NA} when unreachable), \code{challenged} (see \code{\link[=is_challenge]{is_challenge()}}),
-\code{type} (the \code{content-type}, lower case), \code{size} (the resource's length
-in bytes, taken from \code{content-range} when the request was answered
-with a range, else \code{content-length}; \code{NA} when unknown) and \code{headers}
-(the parsed list).
+\code{blocked} (see \code{\link[=is_block]{is_block()}}), \code{type} (the \code{content-type}, lower case),
+\code{size} (the resource's length in bytes, taken from \code{content-range} when
+the request was answered with a range, else \code{content-length}; \code{NA} when
+unknown) and \code{headers} (the parsed list). A browser is called for when
+\code{challenged} or \code{blocked} is \code{TRUE}.
 }
 \description{
 Sends a ranged \code{GET} for the first byte, so that the answer carries the

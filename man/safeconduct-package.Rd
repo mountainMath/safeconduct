@@ -6,11 +6,12 @@
 \alias{safeconduct-package}
 \title{safeconduct: Fetch Files Through a Real Browser When a Plain Request Is Refused}
 \description{
-Some servers answer any request that does not come from a web browser with a browser check instead of the file, 'Cloudflare' managed challenges being the common case. This package opens a real 'Chrome' window with a throwaway profile, lets the check run, and downloads the file: through 'curl' carrying the clearance the browser was given where the server accepts that, and through the browser itself where it does not. Nothing is simulated; where the check asks a person to click, the window waits for them. Built on 'chromote'.
+Some servers refuse any request that does not come from a web browser, with a browser check or a block page instead of the file, 'Cloudflare' being the common case. This package opens a real 'Chrome' with a throwaway profile, lets any check run, and fetches the file or page: through 'curl' carrying the clearance the browser was given where the server accepts that, and through the browser itself where it does not. Nothing is simulated; where a check asks a person to click, a window waits for them. Built on 'chromote'.
 }
 \seealso{
 Useful links:
 \itemize{
+  \item \url{https://mountainmath.github.io/safeconduct/}
   \item \url{https://github.com/mountainMath/safeconduct}
   \item Report bugs at \url{https://github.com/mountainMath/safeconduct/issues}
 }

@@ -2,9 +2,15 @@
 % Please edit documentation in R/fetch.R
 \name{download_in_browser}
 \alias{download_in_browser}
-\title{Download a file in a browser window}
+\title{Download a file in a browser}
 \usage{
-download_in_browser(url, destfile, quiet = FALSE, timeout = 3600)
+download_in_browser(
+  url,
+  destfile,
+  quiet = FALSE,
+  timeout = 3600,
+  headed = NULL
+)
 }
 \arguments{
 \item{url}{The file's URL.}
@@ -14,13 +20,20 @@ download_in_browser(url, destfile, quiet = FALSE, timeout = 3600)
 \item{quiet}{Suppress progress messages.}
 
 \item{timeout}{Seconds a transfer in the browser may take.}
+
+\item{headed}{How to run the browser, when one is needed: \code{TRUE} for a
+window, \code{FALSE} for headless Chrome, or \code{"auto"} to try headless first
+and open a window only when the headless run does not get through, so
+that a window is shown only when someone may need to click. \code{NULL}, the
+default, takes the \code{safeconduct.headed} option, and failing that shows a
+window when there is a display.}
 }
 \value{
 \code{destfile}, invisibly. Errors as \code{\link[=fetch]{fetch()}} does.
 }
 \description{
-Opens a Chrome window with a throwaway profile, lets any browser check
-run, and downloads \code{url} in the window, which stays open until the
+Opens a Chrome with a throwaway profile on the host, lets any browser
+check run, and downloads \code{url} in it; a window stays open until the
 transfer is done. \code{\link[=fetch]{fetch()}} does this only when it has to; this is for
 when the browser is wanted regardless.
 }

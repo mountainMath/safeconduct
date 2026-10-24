@@ -9,20 +9,26 @@ template:
 
 reference:
 - title: Fetching
-  desc: Download a file, through a browser when the server insists on one.
+  desc: Download a file or read a page, through a browser when the server insists on one.
   contents:
   - fetch
+  - fetch_memory
   - download_in_browser
+- title: Sessions
+  desc: A browser kept open on a host, for a feed read every few minutes.
+  contents:
+  - browser_session
 - title: Clearance
   desc: The browser's cookies and user agent, for requests you make yourself.
   contents:
   - clearance
   - handle
 - title: Probing
-  desc: What a server serves at a URL, and whether it is a browser check.
+  desc: What a server serves at a URL, and whether it is a browser check or a block.
   contents:
   - probe
   - is_challenge
+  - is_block
   - browser_available
 - title: Package
   contents:

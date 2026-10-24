@@ -8,7 +8,7 @@ is_challenge(headers)
 }
 \arguments{
 \item{headers}{The response headers, either as the raw header block
-(one string, lines separated by \verb{\\r\\n}) or as the named list
+(one string, lines separated by \verb{\\r\\n}) or as a named list such as
 \code{\link[curl:parse_headers_list]{curl::parse_headers_list()}} makes of it.}
 }
 \value{
@@ -21,4 +21,7 @@ Does a response carry a browser check instead of the resource?
 \examples{
 is_challenge("HTTP/2 403\r\ncf-mitigated: challenge\r\n\r\n")
 is_challenge("HTTP/2 200\r\ncontent-type: application/zip\r\n\r\n")
+}
+\seealso{
+\code{\link[=is_block]{is_block()}} for the other refusal a browser gets past.
 }

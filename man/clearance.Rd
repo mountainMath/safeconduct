@@ -4,7 +4,7 @@
 \alias{clearance}
 \title{Get a clearance for a host from a browser}
 \usage{
-clearance(url, refresh = FALSE, quiet = FALSE, wait = NULL)
+clearance(url, refresh = FALSE, quiet = FALSE, wait = NULL, headed = NULL)
 }
 \arguments{
 \item{url}{The file's URL.}
@@ -16,6 +16,13 @@ clearance(url, refresh = FALSE, quiet = FALSE, wait = NULL)
 \item{wait}{Seconds to wait for the check to pass. The default is two
 minutes when a window is shown, so that a person can click a box if one
 appears, and thirty seconds headless.}
+
+\item{headed}{How to run the browser, when one is needed: \code{TRUE} for a
+window, \code{FALSE} for headless Chrome, or \code{"auto"} to try headless first
+and open a window only when the headless run does not get through, so
+that a window is shown only when someone may need to click. \code{NULL}, the
+default, takes the \code{safeconduct.headed} option, and failing that shows a
+window when there is a display.}
 }
 \value{
 An object of class \code{safeconduct_clearance}: a list with \code{host},
@@ -23,11 +30,15 @@ An object of class \code{safeconduct_clearance}: a list with \code{host},
 \code{\link[=fetch]{fetch()}} does.
 }
 \description{
-Opens a Chrome window on the host, lets the browser check run, and returns
-what the browser was given: its user-agent string and its cookies, which
+Opens a Chrome on the host, lets any browser check run, and returns what
+the browser then holds: its user-agent string and its cookies, which
 \code{\link[=handle]{handle()}} puts on a curl request. Whether the server then serves curl is
 the server's call -- see \code{\link[=fetch]{fetch()}}, which falls back to downloading in the
-browser when it does not. Clearances are cached per host for the session.
+browser when it does not. A host that blocks plain clients without ever
+checking a browser yields a clearance all the same, with whatever cookies
+it set; curl will usually not be served with it, since such a block is
+about the client rather than a cookie. Clearances are cached per host for
+the R session.
 }
 \examples{
 \dontrun{
