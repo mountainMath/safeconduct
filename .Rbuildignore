@@ -1,0 +1,7 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^\.claude$
+^\.github$
+^LICENSE\.md$
+^_pkgdown\.yml$
+^docs$
