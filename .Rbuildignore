@@ -10,3 +10,4 @@
 ^doc$
 ^Meta$
 ^vignettes\.orig$
+^\.git-blame-ignore-revs$

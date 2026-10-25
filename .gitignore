@@ -15,3 +15,7 @@ vignettes.orig/*.png
 vignettes.orig/*.html
 vignettes.orig/*.md
 vignettes.orig/*_files/
+
+# What testthat leaves behind when a test fails
+tests/testthat/_problems/
+tests/testthat/testthat-problems.rds

@@ -1,0 +1,4 @@
+# Mechanical renames, skipped by git blame (git config blame.ignoreRevsFile .git-blame-ignore-revs)
+
+# Internal functions renamed from bf_ to sc_
+17d984196726b6ae024484d2fb2e126ee4759c67
