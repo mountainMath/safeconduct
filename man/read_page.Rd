@@ -46,7 +46,8 @@ browser's first request, and what \code{\link[=clearance]{clearance()}} then rep
 A list: \code{url} (the final URL), \code{status_code}, \code{type} (the
 \code{content-type}, lower case), \code{headers} (a named list) and \code{content}
 (raw). An HTTP error status is returned, not raised; \code{content} is then
-the error page. Errors are classed as \code{\link[=fetch]{fetch()}}'s are.
+the error page. Errors are classed as \code{\link[=fetch]{fetch()}}'s are. Parse it with
+\code{\link[=page_text]{page_text()}}, \code{\link[=page_json]{page_json()}} or \code{\link[=page_html]{page_html()}}.
 }
 \description{
 The counterpart of \code{\link[=fetch]{fetch()}} for a page or a feed rather than a file: the
@@ -66,6 +67,6 @@ repeated.
 \examples{
 \dontrun{
 r <- read_page("https://results.vancouver.ca/data/arearesults.json")
-jsonlite::fromJSON(rawToChar(r$content))
+page_json(r)
 }
 }

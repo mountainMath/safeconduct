@@ -13,6 +13,7 @@ reference:
   contents:
   - fetch
   - read_page
+  - page_text
   - download_in_browser
 - title: Sessions
   desc: A browser kept open on a host, for a feed read every few minutes.

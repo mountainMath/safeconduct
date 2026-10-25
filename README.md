@@ -48,9 +48,14 @@ the host instead of opening one per read:
 s <- safeconduct::browser_session("https://results.vancouver.ca/")
 r <- safeconduct::read_page("https://results.vancouver.ca/data/arearesults.json",
                                session = s)
-jsonlite::fromJSON(rawToChar(r$content))
+safeconduct::page_json(r)
 close(s)
 ```
+
+`page_json()`, `page_text()` and `page_html()` parse the response: the
+charset is taken from its headers, and an HTTP error status is raised as an
+error. Each also takes a URL and reads it with `read_page()`'s defaults, so
+`page_html(url)` stands in for `rvest::read_html(url)`.
 
 The read is made by the page the browser holds on the host. Should the server
 ask the browser for a check again meanwhile, the check is passed and the read

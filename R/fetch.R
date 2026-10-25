@@ -217,11 +217,12 @@ bf_escorted_download <- function(chrome, url, destfile, quiet = FALSE,
 #' @return A list: `url` (the final URL), `status_code`, `type` (the
 #'   `content-type`, lower case), `headers` (a named list) and `content`
 #'   (raw). An HTTP error status is returned, not raised; `content` is then
-#'   the error page. Errors are classed as [fetch()]'s are.
+#'   the error page. Errors are classed as [fetch()]'s are. Parse it with
+#'   [page_text()], [page_json()] or [page_html()].
 #' @examples
 #' \dontrun{
 #' r <- read_page("https://results.vancouver.ca/data/arearesults.json")
-#' jsonlite::fromJSON(rawToChar(r$content))
+#' page_json(r)
 #' }
 #' @export
 read_page <- function(url, session = NULL, quiet = FALSE, timeout = 120,

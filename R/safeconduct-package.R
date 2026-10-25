@@ -1,8 +1,9 @@
 #' @keywords internal
 "_PACKAGE"
 
-# jsonlite is used for one thing, decoding the base64 body a browser read
-# returns; it is a dependency of chromote already, so it costs nothing.
+# jsonlite is used for two things, decoding the base64 body a browser read
+# returns and `page_json()`; it is a dependency of chromote already, so it
+# costs nothing. xml2 is only suggested, for `page_html()`.
 
 `%||%` <- function(x, y) if (is.null(x)) y else x
 
