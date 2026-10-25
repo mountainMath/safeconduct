@@ -8,7 +8,8 @@ night   <- "#1F3A4D"   # sky
 road    <- "#2B4B60"
 cream   <- "#F6EBD2"
 amber   <- "#F2B544"
-border  <- "#15293A"
+border  <- "#15293A"   # name band
+gold    <- "#C9962E"   # frame: reads on light and dark pages alike
 paper   <- "#FBF5E8"
 ink     <- "#2A2F36"
 grey    <- "#8A8F96"
@@ -68,7 +69,7 @@ p <- ggplot() +
   geom_sf(data=st_sfc(band), fill=border, colour=NA) +
   geom_sf(data=st_sfc(band_line), colour=cream, linewidth=0.6) +
   annotate("text", x=0, y=top-0.17, label="safeconduct", family=font, fontface="bold", size=3.5, colour=cream) +
-  geom_sf(data=st_sfc(st_difference(st_buffer(hex,0.02), hex_in)), fill=border, colour=NA) +
+  geom_sf(data=st_sfc(st_difference(hex, st_buffer(hex, -0.055))), fill=gold, colour=NA) +   # frame inside the hex, so no corner is clipped
   coord_sf(xlim=c(-sqrt(3)/2, sqrt(3)/2), ylim=c(-1,1), expand=FALSE, datum=NA) +
   theme_void() + theme(plot.margin=margin(0,0,0,0), plot.background=element_blank())
 
