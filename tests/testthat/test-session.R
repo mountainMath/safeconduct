@@ -2,9 +2,9 @@ local_session <- function(session = fake_session(read = read_result()),
                           headed = TRUE, env = parent.frame(), ...) {
   chrome <- fake_chrome(session, headed = headed)
   local_mocked_bindings(
-    bf_browser_unavailable_reason = function() NULL,
-    bf_launch_chrome = function(headed) chrome,
-    bf_wait_pass = function(session, url, timeout) a_clearance(url),
+    sc_browser_unavailable_reason = function() NULL,
+    sc_launch_chrome = function(headed) chrome,
+    sc_wait_pass = function(session, url, timeout) a_clearance(url),
     .env = env)
   list(chrome = chrome,
        s = browser_session("https://example.org/", quiet = TRUE, headed = headed, ...))
@@ -32,9 +32,9 @@ test_that("a session is a browser kept open on a host, until closed", {
 
 test_that("a session downloads and reads in its browser without probing", {
   x <- local_session(headed = FALSE)
-  local_mocked_bindings(bf_probe = function(...) stop("no probe wanted"))
+  local_mocked_bindings(sc_probe = function(...) stop("no probe wanted"))
   got <- NULL
-  local_mocked_bindings(bf_browser_download = function(session, url, destfile, quiet, timeout, headed, ...) {
+  local_mocked_bindings(sc_browser_download = function(session, url, destfile, quiet, timeout, headed, ...) {
     got <<- list(session = session, url = url); invisible(destfile)
   })
   fetch("https://example.org/x.zip", withr::local_tempfile(), session = x$s, quiet = TRUE)
@@ -61,10 +61,10 @@ test_that("a session passes the check again when the host asks", {
   }
   x <- local_session(fake_session(read = reads))
   passed <- 0L
-  local_mocked_bindings(bf_wait_pass = function(session, url, timeout) {
+  local_mocked_bindings(sc_wait_pass = function(session, url, timeout) {
     passed <<- passed + 1L
     expect_identical(url, "https://example.org/")
-    bf_clearance(url, "UA", "cf_clearance=new")
+    sc_clearance(url, "UA", "cf_clearance=new")
   })
   msgs <- capture_messages(r <- read_page("https://example.org/feed.json", session = x$s))
   expect_match(paste(msgs, collapse = ""), "again")
@@ -79,7 +79,7 @@ test_that("a session opens its browser again when it has gone away", {
   x$chrome$session$active <- FALSE
   fresh <- fake_chrome(fake_session(read = read_result()), headed = TRUE)
   opened <- list()
-  local_mocked_bindings(bf_launch_chrome = function(headed) {
+  local_mocked_bindings(sc_launch_chrome = function(headed) {
     opened <<- c(opened, headed); fresh
   })
   msgs <- capture_messages(r <- read_page("https://example.org/feed.json", session = x$s))
@@ -102,7 +102,7 @@ test_that("a session opens its browser again when it goes away mid-read", {
   })
   x <- local_session(first, headed = FALSE)
   fresh <- fake_chrome(fake_session(read = read_result()), headed = FALSE)
-  local_mocked_bindings(bf_launch_chrome = function(headed) fresh)
+  local_mocked_bindings(sc_launch_chrome = function(headed) fresh)
   msgs <- capture_messages(r <- read_page("https://example.org/feed.json", session = x$s))
   expect_match(paste(msgs, collapse = ""), "gone away; opening another")
   expect_false(grepl("window", paste(msgs, collapse = "")))
@@ -114,7 +114,7 @@ test_that("a session opens its browser again when it goes away mid-read", {
     again$session$active <- FALSE
     stop("Session has been closed.")
   }), headed = FALSE)
-  local_mocked_bindings(bf_launch_chrome = function(headed) again)
+  local_mocked_bindings(sc_launch_chrome = function(headed) again)
   expect_error(read_page("https://example.org/feed.json", session = x$s, quiet = TRUE),
                "browser went away", class = "safeconduct_download_error")
   close(x$s)
@@ -123,12 +123,12 @@ test_that("a session opens its browser again when it goes away mid-read", {
 test_that("a session that cannot open its browser again says why", {
   x <- local_session()
   x$chrome$session$active <- FALSE
-  local_mocked_bindings(bf_browser_unavailable_reason = function() "no Chrome here")
+  local_mocked_bindings(sc_browser_unavailable_reason = function() "no Chrome here")
   expect_error(read_page("https://example.org/feed.json", session = x$s, quiet = TRUE),
                "no Chrome here", class = "safeconduct_unavailable")
-  local_mocked_bindings(bf_browser_unavailable_reason = function() NULL,
-                        bf_wait_pass = function(session, url, timeout)
-                          stop(bf_error("safeconduct_not_passed", "nope", reason = "blocked")))
+  local_mocked_bindings(sc_browser_unavailable_reason = function() NULL,
+                        sc_wait_pass = function(session, url, timeout)
+                          stop(sc_error("safeconduct_not_passed", "nope", reason = "blocked")))
   expect_error(read_page("https://example.org/feed.json", session = x$s, quiet = TRUE),
                class = "safeconduct_not_passed")
   # A session the user closed is not reopened.
@@ -142,7 +142,7 @@ test_that("a session downloads in a browser opened again", {
   x$chrome$session$active <- FALSE
   fresh <- fake_chrome(fake_session(events = list(dl_event("completed", "g1", 4, 4))),
                        headed = FALSE)
-  local_mocked_bindings(bf_launch_chrome = function(headed) fresh)
+  local_mocked_bindings(sc_launch_chrome = function(headed) fresh)
   dest <- withr::local_tempfile()
   msgs <- capture_messages(fetch("https://example.org/x.zip", dest, session = x$s))
   expect_match(paste(msgs, collapse = ""), "opening another")
@@ -158,7 +158,7 @@ test_that("a session's user agent is set before the check and kept through a reo
   first$active <- FALSE
   fresh <- fake_chrome(fake_session(read = read_result(),
                                     ua = "Mozilla/5.0 (fake) HeadlessChrome/1"), headed = FALSE)
-  local_mocked_bindings(bf_launch_chrome = function(headed) fresh)
+  local_mocked_bindings(sc_launch_chrome = function(headed) fresh)
   r <- read_page("https://example.org/feed.json", session = x$s, quiet = TRUE)
   expect_identical(r$status_code, 200L)
   expect_identical(fresh$session$calls[[1]], "ua:Mozilla/5.0 (fake) Chrome/1")
@@ -174,16 +174,16 @@ test_that("a session's user agent is set before the check and kept through a reo
 test_that("a session's headless download that does not pass its check moves to a window", {
   chromes <- list()
   local_mocked_bindings(
-    bf_display_available = function() TRUE,
-    bf_browser_unavailable_reason = function() NULL,
-    bf_launch_chrome = function(headed) {
+    sc_display_available = function() TRUE,
+    sc_browser_unavailable_reason = function() NULL,
+    sc_launch_chrome = function(headed) {
       ch <- fake_chrome(headed = headed)
       chromes[[length(chromes) + 1L]] <<- ch
       ch
     },
-    bf_wait_pass = function(session, url, timeout) a_clearance(url),
-    bf_browser_download = function(session, url, destfile, quiet, timeout, headed, ...) {
-      if (!headed) stop(bf_error("safeconduct_not_passed", "still checking",
+    sc_wait_pass = function(session, url, timeout) a_clearance(url),
+    sc_browser_download = function(session, url, destfile, quiet, timeout, headed, ...) {
+      if (!headed) stop(sc_error("safeconduct_not_passed", "still checking",
                                  reason = "timeout"))
       writeLines("x", destfile); invisible(destfile)
     })

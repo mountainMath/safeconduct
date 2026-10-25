@@ -36,11 +36,11 @@
 #' @export
 browser_session <- function(url, quiet = FALSE, wait = NULL, headed = "auto",
                             useragent = TRUE) {
-  chrome <- bf_open_browser(url, quiet = quiet, wait = wait, headed = headed,
-                            useragent = useragent, hints = bf_hints_on(quiet))
+  chrome <- sc_open_browser(url, quiet = quiet, wait = wait, headed = headed,
+                            useragent = useragent, hints = sc_hints_on(quiet))
   s <- new.env(parent = emptyenv())
-  s$host <- bf_url_host(url)
-  s$root <- bf_host_root(url)
+  s$host <- sc_url_host(url)
+  s$root <- sc_host_root(url)
   s$chrome <- chrome
   s$clearance <- chrome$clearance
   s$headed <- chrome$headed
@@ -74,12 +74,12 @@ print.safeconduct_session <- function(x, ...) {
   invisible(x)
 }
 
-bf_session_check <- function(session) {
+sc_session_check <- function(session) {
   if (!inherits(session, "safeconduct_session"))
     stop("`session` must be a browser session from `browser_session()`.",
          call. = FALSE)
   if (!isTRUE(session$open))
-    stop(bf_error("safeconduct_unavailable", paste0(
+    stop(sc_error("safeconduct_unavailable", paste0(
       "The browser session on '", session$host, "' has been closed.")))
   session
 }
@@ -88,7 +88,7 @@ bf_session_check <- function(session) {
 # when the tab is closed, when Chrome quits and when the connection drops,
 # but it learns of these only while a protocol call is in flight, so one
 # cheap call is made first; on a tab that is gone it fails.
-bf_session_alive <- function(s) {
+sc_session_alive <- function(s) {
   ses <- s$chrome$session
   tryCatch({ ses$Browser$getVersion(); isTRUE(ses$is_active()) },
            error = function(e) FALSE)
@@ -98,12 +98,12 @@ bf_session_alive <- function(s) {
 # if a window got through, headless otherwise), and pass the check anew.
 # `why` replaces the message for a reopening that is not about the browser
 # having gone away: a window wanted for a check headless Chrome did not pass.
-bf_session_reopen <- function(s, quiet = FALSE, why = NULL) {
-  bf_message(quiet, why %||% paste0(
+sc_session_reopen <- function(s, quiet = FALSE, why = NULL) {
+  sc_message(quiet, why %||% paste0(
     "The browser on '", s$host, "' has gone away",
     if (s$headed) " (was its window closed?)", "; opening another."))
   try(s$chrome$close(), silent = TRUE)
-  chrome <- bf_open_browser(s$root, quiet = quiet, wait = s$wait,
+  chrome <- sc_open_browser(s$root, quiet = quiet, wait = s$wait,
                             headed = s$headed, useragent = s$useragent,
                             hints = FALSE)
   s$chrome <- chrome
@@ -116,12 +116,12 @@ bf_session_reopen <- function(s, quiet = FALSE, why = NULL) {
 # if it has gone away, and once more if it goes away during `fn` -- the
 # window closed mid-read. A second disappearance is reported as the error
 # it is.
-bf_session_do <- function(session, fn, quiet = FALSE) {
-  s <- bf_session_check(session)
-  if (!bf_session_alive(s)) bf_session_reopen(s, quiet)
+sc_session_do <- function(session, fn, quiet = FALSE) {
+  s <- sc_session_check(session)
+  if (!sc_session_alive(s)) sc_session_reopen(s, quiet)
   tryCatch(fn(s$chrome), safeconduct_error = function(e) {
     if (!identical(e$reason, "gone")) stop(e)
-    bf_session_reopen(s, quiet)
+    sc_session_reopen(s, quiet)
     fn(s$chrome)
   })
 }
@@ -130,19 +130,19 @@ bf_session_do <- function(session, fn, quiet = FALSE) {
 # has to be on the session's host. A response that is a check or a block
 # means the host wants the browser checked again: the check is passed at the
 # root and the read made once more.
-bf_session_read <- function(session, url, quiet = FALSE, timeout = 120) {
-  s <- bf_session_check(session)
-  if (!identical(bf_url_host(url), s$host))
+sc_session_read <- function(session, url, quiet = FALSE, timeout = 120) {
+  s <- sc_session_check(session)
+  if (!identical(sc_url_host(url), s$host))
     stop("The browser session is on '", s$host, "', and a session reads only ",
-         "from its own host; '", url, "' is on '", bf_url_host(url), "'.",
+         "from its own host; '", url, "' is on '", sc_url_host(url), "'.",
          call. = FALSE)
-  bf_session_do(s, quiet = quiet, function(chrome) {
-    r <- bf_browser_read(chrome$session, url, timeout = timeout)
-    if (bf_needs_browser(bf_describe_response(r$status_code, r$headers, r$content))) {
-      bf_message(quiet, "'", s$host, "' is asking the escort for a check again; ",
+  sc_session_do(s, quiet = quiet, function(chrome) {
+    r <- sc_browser_read(chrome$session, url, timeout = timeout)
+    if (sc_needs_browser(sc_describe_response(r$status_code, r$headers, r$content))) {
+      sc_message(quiet, "'", s$host, "' is asking the escort for a check again; ",
                  "passing it.")
-      s$clearance <- bf_wait_pass(chrome$session, s$root, s$wait)
-      r <- bf_browser_read(chrome$session, url, timeout = timeout)
+      s$clearance <- sc_wait_pass(chrome$session, s$root, s$wait)
+      r <- sc_browser_read(chrome$session, url, timeout = timeout)
     }
     r
   })

@@ -37,9 +37,9 @@ devtools::load_all(file.path(src_dir, ".."), quiet = TRUE)
 # called from the console, neither of which knitting is. The vignette is a
 # transcript of a console session, so show them as the console would.
 ns <- asNamespace("safeconduct")
-unlockBinding("bf_hints_on", ns)
-assign("bf_hints_on", function(quiet) !isTRUE(quiet), envir = ns)
-lockBinding("bf_hints_on", ns)
+unlockBinding("sc_hints_on", ns)
+assign("sc_hints_on", function(quiet) !isTRUE(quiet), envir = ns)
+lockBinding("sc_hints_on", ns)
 
 available <- sub("\\.Rmd$", "", list.files(src_dir, pattern = "\\.Rmd$"))
 wanted <- sub("\\.Rmd$", "", commandArgs(trailingOnly = TRUE))
@@ -71,8 +71,8 @@ for (v in wanted) {
   # the package's once-per-host tips and kept cookies start over for each
   # vignette, so that what a vignette shows doesn't depend on which others
   # were knitted before it
-  rm(list = ls(ns$bf_hints), envir = ns$bf_hints)
-  rm(list = ls(ns$bf_clearance_cache), envir = ns$bf_clearance_cache)
+  rm(list = ls(ns$sc_hints), envir = ns$sc_hints)
+  rm(list = ls(ns$sc_clearance_cache), envir = ns$sc_clearance_cache)
   knitr::knit(src, paste0(v, ".Rmd"), envir = env)
 
   # Say so in the file itself, so an edit to the wrong copy is obvious.

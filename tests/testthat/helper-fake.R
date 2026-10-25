@@ -123,11 +123,11 @@ fake_chrome <- function(session = fake_session(), headed = TRUE,
 }
 
 a_clearance <- function(url = "https://example.org/x.zip") {
-  bf_clearance(url, "Mozilla/5.0 (fake)", "cf_clearance=abc; other=1")
+  sc_clearance(url, "Mozilla/5.0 (fake)", "cf_clearance=abc; other=1")
 }
 
 reset_cache <- function() {
-  rm(list = ls(bf_clearance_cache), envir = bf_clearance_cache)
+  rm(list = ls(sc_clearance_cache), envir = sc_clearance_cache)
 }
 
-reset_hints <- function() rm(list = ls(bf_hints, all.names = TRUE), envir = bf_hints)
+reset_hints <- function() rm(list = ls(sc_hints, all.names = TRUE), envir = sc_hints)

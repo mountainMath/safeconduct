@@ -3,7 +3,7 @@
 # A plain request first; only a refusal that a browser gets past -- a browser
 # check or a block page, see `R/probe.R` -- brings a browser into it, so a
 # server that stops refusing is simply fetched. The browser is opened on the
-# host's root and the host's answer to it watched (`bf_wait_pass()`). Once
+# host's root and the host's answer to it watched (`sc_wait_pass()`). Once
 # the host has answered, one ranged probe asks whether curl, carrying the
 # browser's user agent and cookies, is served the resource. After a check it
 # often is: the clearance is tied to the address and the user-agent string,
@@ -19,7 +19,7 @@
 # One clearance per host, kept for the session. Cloudflare's cookie lasts
 # about half an hour; rather than track that, a cached clearance is probed
 # and dropped when the probe says it has lapsed.
-bf_clearance_cache <- new.env(parent = emptyenv())
+sc_clearance_cache <- new.env(parent = emptyenv())
 
 #' Download a file, through a browser if the server insists on one
 #'
@@ -109,52 +109,52 @@ bf_clearance_cache <- new.env(parent = emptyenv())
 fetch <- function(url, destfile, quiet = FALSE, timeout = 3600, session = NULL,
                   headed = "auto", useragent = TRUE) {
   if (!is.null(session)) {
-    s <- bf_session_check(session)
-    return(bf_session_do(s, quiet = quiet, function(chrome) {
+    s <- sc_session_check(session)
+    return(sc_session_do(s, quiet = quiet, function(chrome) {
       fallback <- !chrome$headed && identical(s$mode, "auto")
       tryCatch(
-        bf_browser_download(chrome$session, url, destfile, quiet = quiet,
+        sc_browser_download(chrome$session, url, destfile, quiet = quiet,
                             timeout = timeout, headed = chrome$headed,
                             fallback = fallback),
         safeconduct_not_passed = function(e) {
           if (!fallback || !identical(e$reason, "timeout")) stop(e)
           s$headed <- TRUE
-          bf_session_reopen(s, quiet, why = paste0(
+          sc_session_reopen(s, quiet, why = paste0(
             "Headless Chrome did not get through the check at the file's URL ",
             "on '", s$host, "'; opening a window for the session."))
-          bf_browser_download(s$chrome$session, url, destfile, quiet = quiet,
+          sc_browser_download(s$chrome$session, url, destfile, quiet = quiet,
                               timeout = timeout, headed = TRUE)
         })
     }))
   }
-  hints <- bf_hints_on(quiet)
-  p <- bf_probe(url)
-  if (!bf_needs_browser(p)) return(bf_curl_download(url, destfile, quiet = quiet))
+  hints <- sc_hints_on(quiet)
+  p <- sc_probe(url)
+  if (!sc_needs_browser(p)) return(sc_curl_download(url, destfile, quiet = quiet))
 
-  host <- bf_url_host(url)
-  cached <- bf_clearance_cache[[host]]
+  host <- sc_url_host(url)
+  cached <- sc_clearance_cache[[host]]
   if (!is.null(cached)) {
-    if (!bf_needs_browser(bf_probe(url, cached))) {
-      return(bf_curl_download(url, destfile, quiet = quiet, clearance = cached))
+    if (!sc_needs_browser(sc_probe(url, cached))) {
+      return(sc_curl_download(url, destfile, quiet = quiet, clearance = cached))
     }
-    rm(list = host, envir = bf_clearance_cache)
+    rm(list = host, envir = sc_clearance_cache)
   }
 
-  bf_with_browser(url, quiet = quiet, what = p, headed = headed,
+  sc_with_browser(url, quiet = quiet, what = p, headed = headed,
                   useragent = useragent, hints = hints, function(chrome) {
-    if (!bf_needs_browser(bf_probe(url, chrome$clearance))) {
-      bf_message(quiet, "  Passed; downloading with curl under the browser's clearance.")
-      assign(host, chrome$clearance, envir = bf_clearance_cache)
+    if (!sc_needs_browser(sc_probe(url, chrome$clearance))) {
+      sc_message(quiet, "  Passed; downloading with curl under the browser's clearance.")
+      assign(host, chrome$clearance, envir = sc_clearance_cache)
       chrome$close()
-      return(bf_curl_download(url, destfile, quiet = quiet,
+      return(sc_curl_download(url, destfile, quiet = quiet,
                               clearance = chrome$clearance))
     }
-    bf_message(quiet, "  Passed, but the clearance does not transfer to curl; ",
+    sc_message(quiet, "  Passed, but the clearance does not transfer to curl; ",
                "downloading under escort, in the browser",
                if (chrome$headed) " window, which stays open until it is done."
                else ".")
-    used <- bf_escorted_download(chrome, url, destfile, quiet, timeout, hints)
-    bf_hint_session(hints, url, "fetch", used)
+    used <- sc_escorted_download(chrome, url, destfile, quiet, timeout, hints)
+    sc_hint_session(hints, url, "fetch", used)
     invisible(destfile)
   })
 }
@@ -165,30 +165,30 @@ fetch <- function(url, destfile, quiet = FALSE, timeout = 3600, session = NULL,
 # such a check shows can be clicked by the person at the window, which
 # headless Chrome has no one to do. Returns the browser the download was
 # made in, for the tips; a window opened here is closed before returning.
-bf_escorted_download <- function(chrome, url, destfile, quiet = FALSE,
+sc_escorted_download <- function(chrome, url, destfile, quiet = FALSE,
                                  timeout = 3600, hints = FALSE) {
   fallback <- !chrome$headed && identical(chrome$mode, "auto")
   tryCatch({
-    bf_browser_download(chrome$session, url, destfile, quiet = quiet,
+    sc_browser_download(chrome$session, url, destfile, quiet = quiet,
                         timeout = timeout, headed = chrome$headed,
                         fallback = fallback, hints = hints)
     chrome
   }, safeconduct_not_passed = function(e) {
     if (!fallback || !identical(e$reason, "timeout")) stop(e)
-    host <- bf_url_host(url)
-    bf_message(quiet, "  Headless Chrome did not get through the check at the ",
-               "file's URL; opening a window.", bf_window_note())
+    host <- sc_url_host(url)
+    sc_message(quiet, "  Headless Chrome did not get through the check at the ",
+               "file's URL; opening a window.", sc_window_note())
     chrome$close()
-    window <- bf_open_attempt(url, TRUE, NULL, chrome$useragent)
+    window <- sc_open_attempt(url, TRUE, NULL, chrome$useragent)
     if (inherits(window, "error")) stop(window)
     on.exit(window$close(), add = TRUE)
     window$fell_back <- TRUE
     window$mode <- chrome$mode
     window$useragent <- chrome$useragent
-    bf_hint(hints, paste0("headed:", host),
+    sc_hint(hints, paste0("headed:", host),
       "a window is what gets through at '", host, "'; ",
       "headed = TRUE goes straight to one next time.")
-    bf_browser_download(window$session, url, destfile, quiet = quiet,
+    sc_browser_download(window$session, url, destfile, quiet = quiet,
                         timeout = timeout, headed = TRUE)
     window
   })
@@ -227,30 +227,30 @@ bf_escorted_download <- function(chrome, url, destfile, quiet = FALSE,
 #' @export
 read_page <- function(url, session = NULL, quiet = FALSE, timeout = 120,
                       headed = "auto", useragent = TRUE) {
-  if (!is.null(session)) return(bf_session_read(session, url, quiet, timeout))
-  hints <- bf_hints_on(quiet)
-  p <- bf_probe(url)
-  if (!bf_needs_browser(p)) return(bf_curl_fetch(url))
+  if (!is.null(session)) return(sc_session_read(session, url, quiet, timeout))
+  hints <- sc_hints_on(quiet)
+  p <- sc_probe(url)
+  if (!sc_needs_browser(p)) return(sc_curl_fetch(url))
 
-  host <- bf_url_host(url)
-  cached <- bf_clearance_cache[[host]]
+  host <- sc_url_host(url)
+  cached <- sc_clearance_cache[[host]]
   if (!is.null(cached)) {
-    if (!bf_needs_browser(bf_probe(url, cached))) return(bf_curl_fetch(url, cached))
-    rm(list = host, envir = bf_clearance_cache)
+    if (!sc_needs_browser(sc_probe(url, cached))) return(sc_curl_fetch(url, cached))
+    rm(list = host, envir = sc_clearance_cache)
   }
 
-  bf_with_browser(url, quiet = quiet, what = p, headed = headed,
+  sc_with_browser(url, quiet = quiet, what = p, headed = headed,
                   useragent = useragent, hints = hints, function(chrome) {
-    if (!bf_needs_browser(bf_probe(url, chrome$clearance))) {
-      bf_message(quiet, "  Passed; reading with curl under the browser's clearance.")
-      assign(host, chrome$clearance, envir = bf_clearance_cache)
+    if (!sc_needs_browser(sc_probe(url, chrome$clearance))) {
+      sc_message(quiet, "  Passed; reading with curl under the browser's clearance.")
+      assign(host, chrome$clearance, envir = sc_clearance_cache)
       chrome$close()
-      return(bf_curl_fetch(url, chrome$clearance))
+      return(sc_curl_fetch(url, chrome$clearance))
     }
-    bf_message(quiet, "  Passed, but the clearance does not transfer to curl; ",
+    sc_message(quiet, "  Passed, but the clearance does not transfer to curl; ",
                "reading under escort, in the browser.")
-    out <- bf_browser_read(chrome$session, url, timeout = timeout)
-    bf_hint_session(hints, url, "read_page", chrome)
+    out <- sc_browser_read(chrome$session, url, timeout = timeout)
+    sc_hint_session(hints, url, "read_page", chrome)
     out
   })
 }
@@ -283,15 +283,15 @@ read_page <- function(url, session = NULL, quiet = FALSE, timeout = 120,
 #' @export
 clearance <- function(url, refresh = FALSE, quiet = FALSE, wait = NULL,
                       headed = "auto", useragent = TRUE) {
-  host <- bf_url_host(url)
+  host <- sc_url_host(url)
   if (!refresh) {
-    cached <- bf_clearance_cache[[host]]
+    cached <- sc_clearance_cache[[host]]
     if (!is.null(cached)) return(cached)
   }
-  chrome <- bf_open_browser(url, quiet = quiet, wait = wait, headed = headed,
-                            useragent = useragent, hints = bf_hints_on(quiet))
+  chrome <- sc_open_browser(url, quiet = quiet, wait = wait, headed = headed,
+                            useragent = useragent, hints = sc_hints_on(quiet))
   chrome$close()
-  assign(host, chrome$clearance, envir = bf_clearance_cache)
+  assign(host, chrome$clearance, envir = sc_clearance_cache)
   chrome$clearance
 }
 
@@ -311,19 +311,19 @@ clearance <- function(url, refresh = FALSE, quiet = FALSE, wait = NULL,
 #' @export
 download_in_browser <- function(url, destfile, quiet = FALSE, timeout = 3600,
                                 headed = "auto", useragent = TRUE) {
-  hints <- bf_hints_on(quiet)
-  bf_with_browser(url, quiet = quiet, headed = headed, useragent = useragent,
+  hints <- sc_hints_on(quiet)
+  sc_with_browser(url, quiet = quiet, headed = headed, useragent = useragent,
                   hints = hints, function(chrome) {
-    bf_escorted_download(chrome, url, destfile, quiet, timeout, hints)
+    sc_escorted_download(chrome, url, destfile, quiet, timeout, hints)
     invisible(destfile)
   })
 }
 
 # Open a browser on the host and run `fn(chrome)` in it; the browser is
 # closed afterwards whatever happens. `fn` may close it earlier itself.
-bf_with_browser <- function(url, fn, quiet = FALSE, wait = NULL, what = NULL,
+sc_with_browser <- function(url, fn, quiet = FALSE, wait = NULL, what = NULL,
                             headed = "auto", useragent = TRUE, hints = FALSE) {
-  chrome <- bf_open_browser(url, quiet = quiet, wait = wait, what = what,
+  chrome <- sc_open_browser(url, quiet = quiet, wait = wait, what = what,
                             headed = headed, useragent = useragent, hints = hints)
   on.exit(chrome$close(), add = TRUE)
   invisible(fn(chrome))
@@ -335,35 +335,35 @@ bf_with_browser <- function(url, fn, quiet = FALSE, wait = NULL, what = NULL,
 # headless attempt that ends on a check or a block is made again in a window.
 # `what` is the probe that brought the browser in, for the message;
 # `useragent` the string the browser is to announce (see
-# `bf_set_useragent()`); `hints` whether tips may be shown (see `bf_hint()`).
-bf_open_browser <- function(url, quiet = FALSE, wait = NULL, what = NULL,
+# `sc_set_useragent()`); `hints` whether tips may be shown (see `sc_hint()`).
+sc_open_browser <- function(url, quiet = FALSE, wait = NULL, what = NULL,
                             headed = "auto", useragent = TRUE, hints = FALSE) {
-  useragent <- bf_useragent_check(useragent)
-  reason <- bf_browser_unavailable_reason()
+  useragent <- sc_useragent_check(useragent)
+  reason <- sc_browser_unavailable_reason()
   if (!is.null(reason)) {
-    stop(bf_error("safeconduct_unavailable", paste0(
+    stop(sc_error("safeconduct_unavailable", paste0(
       "'", url, "' needs a browser, and no browser can be opened here: ",
       reason, ".")))
   }
-  mode <- bf_headed_mode(headed)
+  mode <- sc_headed_mode(headed)
   headed <- identical(mode, "headed")
-  host <- bf_url_host(url)
-  bf_message(quiet,
+  host <- sc_url_host(url)
+  sc_message(quiet,
     if (isTRUE(what$challenged)) paste0("'", host, "' is asking for a browser check; sending a browser through.")
     else if (isTRUE(what$blocked)) paste0("'", host, "' turns plain requests away; sending a browser through.")
     else paste0("Sending a browser through to '", host, "'."),
-    if (headed) bf_window_note()
+    if (headed) sc_window_note()
     else if (identical(mode, "auto")) "\n  Trying headless Chrome first."
     else "\n  Using headless Chrome.")
-  chrome <- bf_open_attempt(url, headed, wait, useragent)
+  chrome <- sc_open_attempt(url, headed, wait, useragent)
   if (inherits(chrome, "safeconduct_not_passed") && identical(mode, "auto")) {
     blocked <- identical(chrome$reason, "blocked")
-    bf_message(quiet, "  Headless Chrome did not get through; opening a window.",
-               bf_window_note())
-    chrome <- bf_open_attempt(url, TRUE, wait, useragent)
+    sc_message(quiet, "  Headless Chrome did not get through; opening a window.",
+               sc_window_note())
+    chrome <- sc_open_attempt(url, TRUE, wait, useragent)
     if (!inherits(chrome, "error")) {
       chrome$fell_back <- TRUE
-      bf_hint(hints, paste0("headed:", host),
+      sc_hint(hints, paste0("headed:", host),
         "a window is what gets through at '", host, "'; ",
         "headed = TRUE goes straight to one next time.",
         if (blocked && is.null(useragent)) paste0(
@@ -377,7 +377,7 @@ bf_open_browser <- function(url, quiet = FALSE, wait = NULL, what = NULL,
   chrome
 }
 
-bf_window_note <- function() {
+sc_window_note <- function() {
   paste0("\n  Opening a Chrome window; this usually takes a few seconds.",
          "\n  If it shows a \"Verify you are human\" box, click the box.")
 }
@@ -386,16 +386,16 @@ bf_window_note <- function() {
 # condition after closing it. A window on a screen can be clicked by whoever
 # is at it, whether or not R is interactive, so its wait is for the person,
 # not the check; headless Chrome has no one to wait for.
-bf_open_attempt <- function(url, headed, wait = NULL, useragent = TRUE) {
+sc_open_attempt <- function(url, headed, wait = NULL, useragent = TRUE) {
   wait <- wait %||% if (headed) 120 else 30
-  chrome <- tryCatch(bf_launch_chrome(headed), error = function(e) {
-    stop(bf_error("safeconduct_unavailable", paste0(
+  chrome <- tryCatch(sc_launch_chrome(headed), error = function(e) {
+    stop(sc_error("safeconduct_unavailable", paste0(
       "Could not start Chrome: ", conditionMessage(e))))
   })
   chrome$wait <- wait
   tryCatch({
-    bf_set_useragent(chrome$session, useragent)
-    chrome$clearance <- bf_wait_pass(chrome$session, bf_host_root(url), wait)
+    sc_set_useragent(chrome$session, useragent)
+    chrome$clearance <- sc_wait_pass(chrome$session, sc_host_root(url), wait)
     chrome
   }, safeconduct_not_passed = function(e) {
     chrome$close()
@@ -404,14 +404,14 @@ bf_open_attempt <- function(url, headed, wait = NULL, useragent = TRUE) {
 }
 
 # Indirection so the flow can be tested without a network.
-bf_probe <- function(url, clearance = NULL) probe(url, clearance)
+sc_probe <- function(url, clearance = NULL) probe(url, clearance)
 
 # Fetch with curl, converting any failure -- unreachable host, HTTP error, an
 # empty result -- into a `safeconduct_download_error`. curl writes to a
 # temporary file and renames it on success, so a failed fetch leaves nothing
 # behind. There is no overall timeout, but a transfer that stalls below a
 # kilobyte a second for two minutes is abandoned.
-bf_curl_download <- function(url, destfile, quiet = FALSE, clearance = NULL) {
+sc_curl_download <- function(url, destfile, quiet = FALSE, clearance = NULL) {
   h <- clearance_handle(clearance, connecttimeout = 60,
               low_speed_limit = 1024, low_speed_time = 120)
   err <- NULL
@@ -422,7 +422,7 @@ bf_curl_download <- function(url, destfile, quiet = FALSE, clearance = NULL) {
   ok <- ok && file.exists(destfile) && file.info(destfile)$size > 0
   if (!ok) {
     if (file.exists(destfile)) unlink(destfile)
-    stop(bf_error("safeconduct_download_error", paste0(
+    stop(sc_error("safeconduct_download_error", paste0(
       "Could not download '", url, "'",
       if (!is.null(err)) paste0(": ", err) else ".")))
   }
@@ -431,14 +431,14 @@ bf_curl_download <- function(url, destfile, quiet = FALSE, clearance = NULL) {
 
 # Fetch into memory with curl, in the shape `read_page()` returns. Only a
 # failure to get any response is an error; an HTTP error status is returned.
-bf_curl_fetch <- function(url, clearance = NULL) {
+sc_curl_fetch <- function(url, clearance = NULL) {
   res <- tryCatch(
     curl::curl_fetch_memory(url, clearance_handle(clearance, connecttimeout = 60)),
     error = function(e) {
-      stop(bf_error("safeconduct_download_error", paste0(
+      stop(sc_error("safeconduct_download_error", paste0(
         "Could not read '", url, "': ", conditionMessage(e))))
     })
-  h <- bf_parse_headers(rawToChar(res$headers))
+  h <- sc_parse_headers(rawToChar(res$headers))
   list(url = res$url, status_code = as.integer(res$status_code),
        type = tolower(h[["content-type"]] %||% NA_character_),
        headers = h, content = res$content)

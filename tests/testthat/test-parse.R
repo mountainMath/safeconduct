@@ -63,7 +63,7 @@ test_that("page_json() parses JSON and refuses HTML", {
 test_that("a response from curl on a file:// URL parses", {
   src <- withr::local_tempfile(fileext = ".json")
   writeBin(charToRaw('{"a":1}'), src)
-  r <- bf_curl_fetch(paste0("file://", normalizePath(src)))
+  r <- sc_curl_fetch(paste0("file://", normalizePath(src)))
   expect_identical(page_json(r), list(a = 1L))
 })
 

@@ -63,11 +63,11 @@
 #' attr(browser_available(), "reason")
 #' @export
 browser_available <- function() {
-  reason <- bf_browser_unavailable_reason()
+  reason <- sc_browser_unavailable_reason()
   structure(is.null(reason), reason = reason)
 }
 
-bf_browser_unavailable_reason <- function() {
+sc_browser_unavailable_reason <- function() {
   if (!isTRUE(getOption("safeconduct.browser", TRUE)))
     return("the `safeconduct.browser` option is FALSE")
   chrome <- tryCatch(suppressMessages(chromote::find_chrome()),
@@ -80,7 +80,7 @@ bf_browser_unavailable_reason <- function() {
 
 # Can a window be shown? Always on macOS and Windows; on Linux only under a
 # display server.
-bf_display_available <- function() {
+sc_display_available <- function() {
   sysname <- Sys.info()[["sysname"]]
   if (sysname %in% c("Darwin", "Windows")) return(TRUE)
   nzchar(Sys.getenv("DISPLAY")) || nzchar(Sys.getenv("WAYLAND_DISPLAY"))
@@ -90,10 +90,10 @@ bf_display_available <- function() {
 # (headless first, a window if that does not get through). The `headed`
 # argument of the public functions -- `"auto"` by default, `TRUE` or `FALSE`
 # -- decides. "auto" without a display is plain headless.
-bf_headed_mode <- function(headed = "auto") {
+sc_headed_mode <- function(headed = "auto") {
   headed <- headed %||% "auto"
   if (identical(headed, "auto"))
-    return(if (bf_display_available()) "auto" else "headless")
+    return(if (sc_display_available()) "auto" else "headless")
   if (isTRUE(headed)) return("headed")
   if (isFALSE(headed)) return("headless")
   stop("`headed` must be \"auto\", TRUE or FALSE.", call. = FALSE)
@@ -103,7 +103,7 @@ bf_headed_mode <- function(headed = "auto") {
 # option says, a `c(width, height)` in pixels or `"maximized"`. (Before the
 # viewport override above was found, the card was cut off at every size and
 # the window was opened maximized; that is no longer needed by default.)
-bf_window_args <- function() {
+sc_window_args <- function() {
   size <- getOption("safeconduct.window", c(1000L, 800L))
   if (identical(size, "maximized")) return("--start-maximized")
   if (!is.numeric(size) || length(size) != 2L || any(is.na(size)) || any(size < 200))
@@ -114,7 +114,7 @@ bf_window_args <- function() {
 
 # Chrome's `DevToolsActivePort` file: the port on the first line, written once
 # the DevTools server is listening.
-bf_devtools_port <- function(profile, timeout = 15) {
+sc_devtools_port <- function(profile, timeout = 15) {
   path <- file.path(profile, "DevToolsActivePort")
   deadline <- Sys.time() + timeout
   while (Sys.time() < deadline) {
@@ -131,7 +131,7 @@ bf_devtools_port <- function(profile, timeout = 15) {
 # Start Chrome and attach a DevTools session to it. Returns a list with the
 # `session` (a `chromote::ChromoteSession`), `headed` (whether a window is on
 # screen) and `close()`, which shuts everything down and removes the profile.
-bf_launch_chrome <- function(headed = TRUE) {
+sc_launch_chrome <- function(headed = TRUE) {
   if (!headed) {
     chrome <- chromote::Chromote$new()
     session <- chromote::ChromoteSession$new(parent = chrome)
@@ -148,7 +148,7 @@ bf_launch_chrome <- function(headed = TRUE) {
       paste0("--user-data-dir=", profile),
       "--no-first-run", "--no-default-browser-check",
       "--disable-extensions", "--disable-sync",
-      bf_window_args(),
+      sc_window_args(),
       "about:blank"),
     stdout = NULL, stderr = NULL, supervise = TRUE, cleanup = TRUE)
   state <- new.env()
@@ -167,7 +167,7 @@ bf_launch_chrome <- function(headed = TRUE) {
     unlink(profile, recursive = TRUE)
   }
   tryCatch({
-    port <- bf_devtools_port(profile)
+    port <- sc_devtools_port(profile)
     remote <- chromote::ChromeRemote$new(host = "127.0.0.1", port = port)
     state$chrome <- chromote::Chromote$new(browser = remote)
     state$session <- chromote::ChromoteSession$new(parent = state$chrome)
@@ -185,15 +185,15 @@ bf_launch_chrome <- function(headed = TRUE) {
 # the protocol before the first navigation and holds for the browser's life;
 # it is what the clearance then reports too, so curl under the clearance
 # says the same.
-bf_useragent_check <- function(useragent) {
+sc_useragent_check <- function(useragent) {
   if (is.null(useragent) || isTRUE(useragent)) return(useragent)
   if (is.character(useragent) && length(useragent) == 1L && !is.na(useragent) &&
       nzchar(useragent)) return(useragent)
   stop("`useragent` must be NULL, TRUE or one string.", call. = FALSE)
 }
 
-bf_set_useragent <- function(session, useragent) {
-  useragent <- bf_useragent_check(useragent)
+sc_set_useragent <- function(session, useragent) {
+  useragent <- sc_useragent_check(useragent)
   if (is.null(useragent)) return(invisible(NULL))
   if (isTRUE(useragent)) {
     own <- session$Runtime$evaluate("navigator.userAgent")$result$value
@@ -205,7 +205,7 @@ bf_set_useragent <- function(session, useragent) {
 }
 
 # The CDP cookie list as one `Cookie:` header value.
-bf_cookie_header <- function(cookies) {
+sc_cookie_header <- function(cookies) {
   paste(vapply(cookies, function(ck) paste0(ck$name, "=", ck$value),
                character(1)),
         collapse = "; ")
@@ -229,7 +229,7 @@ bf_cookie_header <- function(cookies) {
 # local mock page with a blocking CSP; the one real run with it on ended with
 # the browser going away before the download, for reasons not established, so
 # it is not on by default.
-bf_focus_script <- function(selector = getOption("safeconduct.focus", NULL),
+sc_focus_script <- function(selector = getOption("safeconduct.focus", NULL),
                             zoom = getOption("safeconduct.zoom", 1.5)) {
   if (isFALSE(selector) || is.null(selector)) return(NULL)
   sprintf(
@@ -259,7 +259,7 @@ bf_focus_script <- function(selector = getOption("safeconduct.focus", NULL),
     })(%s, %s)", encodeString(selector, quote = '"'), zoom)
 }
 
-bf_focus <- function(session, script) {
+sc_focus <- function(session, script) {
   if (is.null(script)) return(invisible(NULL))
   try(session$Runtime$evaluate(script), silent = TRUE)
   invisible(NULL)
@@ -269,9 +269,9 @@ bf_focus <- function(session, script) {
 #
 # Events only reach R while a protocol call is in flight, so the loops below
 # make a cheap synchronous call each turn, which also notices a browser that
-# has gone away. `bf_watch_documents()` records the latest document response
+# has gone away. `sc_watch_documents()` records the latest document response
 # of the main frame -- the challenge iframe's documents are not it -- and
-# `bf_document_kind()` says what it is:
+# `sc_document_kind()` says what it is:
 #
 #   "challenge"  the check is running (or waiting for a click)
 #   "block"      Cloudflare's block page: the browser is refused too
@@ -279,7 +279,7 @@ bf_focus <- function(session, script) {
 #   "pending"    a 403 from Cloudflare whose body is not readable yet
 #   "page"       anything else: the host answered the browser
 #   NULL         nothing yet
-bf_watch_documents <- function(session) {
+sc_watch_documents <- function(session) {
   invisible(session$Network$enable())
   frame <- tryCatch(session$Page$getFrameTree()$frameTree$frame$id,
                     error = function(e) NULL)
@@ -289,7 +289,7 @@ bf_watch_documents <- function(session) {
     if (!identical(ev$type, "Document")) return(invisible(NULL))
     if (!is.null(frame) && !is.null(ev$frameId) && !identical(ev$frameId, frame))
       return(invisible(NULL))
-    h <- bf_parse_headers(ev$response$headers %||% list())
+    h <- sc_parse_headers(ev$response$headers %||% list())
     w$doc <- list(requestId = ev$requestId, status = ev$response$status %||% 0,
                   headers = h, url = ev$response$url,
                   type = tolower(h[["content-type"]] %||%
@@ -300,7 +300,7 @@ bf_watch_documents <- function(session) {
   w
 }
 
-bf_document_kind <- function(session, w) {
+sc_document_kind <- function(session, w) {
   doc <- w$doc
   if (is.null(doc)) return(NULL)
   if (is_challenge(doc$headers)) return("challenge")
@@ -323,13 +323,13 @@ bf_document_kind <- function(session, w) {
 
 # How a browser that is no longer there is reported: the message says so,
 # and `reason = "gone"` lets a session tell it from other failures.
-bf_gone_message <- function() "the browser went away: closed, or crashed."
+sc_gone_message <- function() "the browser went away: closed, or crashed."
 
 # The protocol call that pumps events; a browser that has gone away raises.
-bf_pump <- function(session, what = "safeconduct_not_passed") {
+sc_pump <- function(session, what = "safeconduct_not_passed") {
   tryCatch(session$Browser$getVersion(), error = function(e) {
-    stop(bf_error(what, paste0("The browser check was not passed: ",
-                               bf_gone_message()), reason = "gone"))
+    stop(sc_error(what, paste0("The browser check was not passed: ",
+                               sc_gone_message()), reason = "gone"))
   })
   invisible(NULL)
 }
@@ -340,19 +340,19 @@ bf_pump <- function(session, what = "safeconduct_not_passed") {
 # -- or raises `safeconduct_not_passed`, with `reason` `"blocked"` when the
 # browser was shown the block page and `"timeout"` when the check was still
 # pending after `timeout` seconds.
-bf_wait_pass <- function(session, url, timeout) {
-  w <- bf_watch_documents(session)
+sc_wait_pass <- function(session, url, timeout) {
+  w <- sc_watch_documents(session)
   on.exit(w$stop(), add = TRUE)
   invisible(session$Page$navigate(url, wait_ = FALSE))
-  focus <- bf_focus_script()
+  focus <- sc_focus_script()
   deadline <- Sys.time() + timeout
   pending_since <- NULL
   repeat {
     Sys.sleep(0.5)
-    bf_pump(session)
-    bf_focus(session, focus)
-    kind <- bf_document_kind(session, w)
-    if (identical(kind, "page")) return(bf_snapshot_clearance(session, url))
+    sc_pump(session)
+    sc_focus(session, focus)
+    kind <- sc_document_kind(session, w)
+    if (identical(kind, "page")) return(sc_snapshot_clearance(session, url))
     if (identical(kind, "pending")) {
       pending_since <- pending_since %||% Sys.time()
       if (Sys.time() - pending_since > 3) kind <- "block"
@@ -360,28 +360,28 @@ bf_wait_pass <- function(session, url, timeout) {
       pending_since <- NULL
     }
     if (identical(kind, "block")) {
-      stop(bf_error("safeconduct_not_passed", paste0(
-        "'", bf_url_host(url), "' blocks this browser too; there is no safe ",
+      stop(sc_error("safeconduct_not_passed", paste0(
+        "'", sc_url_host(url), "' blocks this browser too; there is no safe ",
         "conduct to be had here."), reason = "blocked"))
     }
     if (Sys.time() > deadline) {
-      stop(bf_error("safeconduct_not_passed", paste0(
-        "The browser check at '", bf_url_host(url), "' was not passed within ",
+      stop(sc_error("safeconduct_not_passed", paste0(
+        "The browser check at '", sc_url_host(url), "' was not passed within ",
         timeout, " seconds."), reason = "timeout"))
     }
   }
 }
 
 # What the browser now holds for the host.
-bf_snapshot_clearance <- function(session, url) {
+sc_snapshot_clearance <- function(session, url) {
   cookies <- tryCatch(session$Network$getCookies(urls = list(url))$cookies,
                       error = function(e) list())
   ua <- session$Runtime$evaluate("navigator.userAgent")$result$value
-  bf_clearance(url, ua, bf_cookie_header(cookies))
+  sc_clearance(url, ua, sc_cookie_header(cookies))
 }
 
-bf_clearance <- function(url, useragent, cookie) {
-  structure(list(host = bf_url_host(url), useragent = useragent,
+sc_clearance <- function(url, useragent, cookie) {
+  structure(list(host = sc_url_host(url), useragent = useragent,
                  cookie = cookie, time = Sys.time()),
             class = "safeconduct_clearance")
 }
@@ -413,18 +413,18 @@ print.safeconduct_clearance <- function(x, ...) {
 # HTML page that starts no download within fifteen seconds is a
 # `safeconduct_download_error` -- the server answered with a page, not the
 # file.
-bf_page_grace <- function() 15
+sc_page_grace <- function() 15
 
 # How long a check at the file's URL may run before the download is given up
 # as not passed. A window waits for a person, as the root wait does. Headless
 # Chrome has no one to wait for, but Cloudflare has let it through such a
 # check with nothing clicked after holding it for about two minutes
 # (www12.statcan.gc.ca, October 2026), so it is given a little more than that.
-bf_check_wait <- function(headed) if (headed) 120 else 150
+sc_check_wait <- function(headed) if (headed) 120 else 150
 
 # What is said when a check turns up at the file's URL. `fallback` says
 # whether a window follows should headless Chrome not get through in time.
-bf_check_note <- function(headed, fallback = FALSE) {
+sc_check_note <- function(headed, fallback = FALSE) {
   paste0("  The server is asking for a browser check at the file's URL first; ",
     if (headed) "if it shows a \"Verify you are human\" box, click the box."
     else paste0("headless Chrome passes it without a click, but it may take ",
@@ -435,7 +435,7 @@ bf_check_note <- function(headed, fallback = FALSE) {
 # Where the browser lands files before they are moved into place: under
 # `tempdir()`, not next to the destination, so that nothing of the package's
 # turns up in a working directory.
-bf_download_dir <- function() {
+sc_download_dir <- function() {
   dir <- file.path(tempdir(), "safeconduct")
   if (!dir.exists(dir)) dir.create(dir)
   dir
@@ -443,26 +443,26 @@ bf_download_dir <- function() {
 
 # Move a finished download into place: a rename where the two are on one
 # volume, a copy otherwise.
-bf_move_file <- function(from, to) {
+sc_move_file <- function(from, to) {
   if (isTRUE(suppressWarnings(file.rename(from, to)))) return(TRUE)
   ok <- isTRUE(file.copy(from, to, overwrite = TRUE))
   if (ok) unlink(from)
   ok
 }
 
-bf_browser_download <- function(session, url, destfile, quiet = FALSE,
+sc_browser_download <- function(session, url, destfile, quiet = FALSE,
                                 timeout = 3600, headed = TRUE,
                                 fallback = FALSE, hints = FALSE) {
   if (!dir.exists(dirname(destfile)))
     stop("The directory for '", destfile, "' does not exist.", call. = FALSE)
-  dir <- bf_download_dir()
+  dir <- sc_download_dir()
   invisible(session$Browser$setDownloadBehavior(
     behavior = "allowAndName", downloadPath = dir, eventsEnabled = TRUE))
   progress <- NULL
   unregister <- session$Browser$downloadProgress(
     callback_ = function(ev) progress <<- ev, wait_ = FALSE)
   on.exit(try(unregister(), silent = TRUE), add = TRUE)
-  w <- bf_watch_documents(session)
+  w <- sc_watch_documents(session)
   on.exit(w$stop(), add = TRUE)
   invisible(session$Page$navigate(url, wait_ = FALSE))
 
@@ -482,21 +482,21 @@ bf_browser_download <- function(session, url, destfile, quiet = FALSE,
   }
   fail <- function(why, class = "safeconduct_download_error", reason = NULL) {
     cleanup()
-    stop(bf_error(class, paste0(
+    stop(sc_error(class, paste0(
       "Could not download '", url, "' in the browser: ", why), reason = reason))
   }
   repeat {
     Sys.sleep(0.5)
     tryCatch(session$Browser$getVersion(),
-             error = function(e) fail(bf_gone_message(), reason = "gone"))
+             error = function(e) fail(sc_gone_message(), reason = "gone"))
     now <- Sys.time()
     state <- progress$state %||% "pending"
     if (identical(state, "completed")) break
     if (identical(state, "canceled")) fail("the browser cancelled it.")
     if (is.null(progress)) {
-      kind <- bf_document_kind(session, w)
+      kind <- sc_document_kind(session, w)
       if (identical(kind, "block")) {
-        fail(paste0("'", bf_url_host(url), "' blocks this browser too."),
+        fail(paste0("'", sc_url_host(url), "' blocks this browser too."),
              "safeconduct_not_passed")
       }
       if (identical(kind, "challenge")) {
@@ -504,22 +504,22 @@ bf_browser_download <- function(session, url, destfile, quiet = FALSE,
         check_since <- check_since %||% now
         last_change <- now
         if (!told) {
-          bf_message(quiet, bf_check_note(headed, fallback))
+          sc_message(quiet, sc_check_note(headed, fallback))
           if (!headed) {
-            bf_hint(hints, paste0("headed:", bf_url_host(url)),
+            sc_hint(hints, paste0("headed:", sc_url_host(url)),
               "rather than wait, headed = TRUE opens a window at once, where ",
               "the check shows its box to click.")
           }
           told <- TRUE
         }
-        if (now - check_since > bf_check_wait(headed)) {
+        if (now - check_since > sc_check_wait(headed)) {
           fail(paste0("the browser check at the file's URL was not passed ",
-                      "within ", bf_check_wait(headed), " seconds."),
+                      "within ", sc_check_wait(headed), " seconds."),
                "safeconduct_not_passed", reason = "timeout")
         }
       } else if (identical(kind, "page") && grepl("html", w$doc$type %||% "")) {
         page_since <- page_since %||% now
-        if (now - page_since > bf_page_grace()) {
+        if (now - page_since > sc_page_grace()) {
           fail(paste0("the server answered with a page (status ",
                       w$doc$status, "), not the file."))
         }
@@ -532,7 +532,7 @@ bf_browser_download <- function(session, url, destfile, quiet = FALSE,
                                              " seconds."))
     if (!quiet && now - last_report > 10 && received > 0) {
       total <- progress$totalBytes %||% 0
-      bf_message(quiet, sprintf("  %.0f MB%s", received / 1e6,
+      sc_message(quiet, sprintf("  %.0f MB%s", received / 1e6,
         if (total > 0) sprintf(" of %.0f", total / 1e6) else ""))
       last_report <- now
     }
@@ -540,7 +540,7 @@ bf_browser_download <- function(session, url, destfile, quiet = FALSE,
   from <- file.path(dir, progress$guid)
   if (!file.exists(from) || file.info(from)$size == 0)
     fail("the browser reported it complete but there is no file.")
-  if (!bf_move_file(from, destfile)) {
+  if (!sc_move_file(from, destfile)) {
     unlink(from)
     fail("the file could not be moved into place.")
   }
@@ -554,8 +554,8 @@ bf_browser_download <- function(session, url, destfile, quiet = FALSE,
 # so that binary resources survive the trip; the request is same-origin, so
 # every response header is readable, including `cf-mitigated` on a check.
 # This is for pages and feeds; a protocol message is not the place for a
-# large file, which is what `bf_browser_download()` is for.
-bf_read_script <- "(async function(url) {
+# large file, which is what `sc_browser_download()` is for.
+sc_read_script <- "(async function(url) {
   try {
     var r = await fetch(url, {cache: 'no-store', credentials: 'include',
                               redirect: 'follow'});
@@ -578,8 +578,8 @@ bf_read_script <- "(async function(url) {
 # the page's `fetch()` failed (the message is the browser's), the call did
 # not come back in time, or the browser is no longer there (`reason`
 # `"gone"`; a session opens another and reads again).
-bf_browser_read <- function(session, url, timeout = 120) {
-  js <- sprintf(bf_read_script, encodeString(url, quote = '"'))
+sc_browser_read <- function(session, url, timeout = 120) {
+  js <- sprintf(sc_read_script, encodeString(url, quote = '"'))
   failed <- NULL
   res <- tryCatch(
     session$Runtime$evaluate(js, awaitPromise = TRUE, returnByValue = TRUE,
@@ -588,15 +588,15 @@ bf_browser_read <- function(session, url, timeout = 120) {
   v <- res$result$value
   if (is.null(v) || !isTRUE(v$ok)) {
     gone <- !isTRUE(tryCatch(session$is_active(), error = function(e) FALSE))
-    why <- if (gone) bf_gone_message()
+    why <- if (gone) sc_gone_message()
            else if (!is.null(v$error)) paste0("the page's request failed: ", v$error)
            else if (!is.null(failed)) failed
            else paste0("no answer within ", timeout, " seconds.")
-    stop(bf_error("safeconduct_download_error", paste0(
+    stop(sc_error("safeconduct_download_error", paste0(
       "Could not read '", url, "' in the browser: ", why),
       reason = if (gone) "gone"))
   }
-  h <- bf_parse_headers(as.list(v$headers %||% list()))
+  h <- sc_parse_headers(as.list(v$headers %||% list()))
   list(url = v$url %||% url, status_code = as.integer(v$status),
        type = tolower(h[["content-type"]] %||% NA_character_),
        headers = h, content = jsonlite::base64_dec(v$body %||% ""))

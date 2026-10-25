@@ -54,27 +54,27 @@
 #' }
 #' @export
 page_text <- function(resp, encoding = NULL, check = TRUE) {
-  resp <- bf_as_response(resp)
-  if (isTRUE(check)) bf_check_status(resp)
+  resp <- sc_as_response(resp)
+  if (isTRUE(check)) sc_check_status(resp)
   x <- resp$content
-  enc <- encoding %||% bf_charset(resp$type) %||% "UTF-8"
+  enc <- encoding %||% sc_charset(resp$type) %||% "UTF-8"
   # A byte-order mark overrides the declared charset, as it does in a browser.
-  if (bf_has_bom(x)) {
+  if (sc_has_bom(x)) {
     x <- x[-(1:3)]
     enc <- "UTF-8"
   }
-  bf_decode(x, enc, resp$url)
+  sc_decode(x, enc, resp$url)
 }
 
 #' @rdname page_text
 #' @export
 page_json <- function(resp, ..., check = TRUE) {
-  resp <- bf_as_response(resp)
-  if (isTRUE(check)) bf_check_status(resp)
+  resp <- sc_as_response(resp)
+  if (isTRUE(check)) sc_check_status(resp)
   txt <- page_text(resp, check = FALSE)
   type <- resp$type %||% NA_character_
   if (!grepl("json", type) && grepl("^\\s*<", txt)) {
-    stop(bf_error("safeconduct_parse_error", paste0(
+    stop(sc_error("safeconduct_parse_error", paste0(
       "'", resp$url, "' answered with ",
       if (is.na(type)) "HTML" else paste0("a page (", type, ")"),
       ", not JSON."), url = resp$url))
@@ -89,18 +89,18 @@ page_html <- function(resp, encoding = NULL, check = TRUE) {
     stop("page_html() needs the xml2 package: install.packages(\"xml2\")",
          call. = FALSE)
   }
-  resp <- bf_as_response(resp)
-  if (isTRUE(check)) bf_check_status(resp)
+  resp <- sc_as_response(resp)
+  if (isTRUE(check)) sc_check_status(resp)
   # The raw bytes, so that libxml2 can read a `<meta charset>` when the header
   # names none; decoding first with a UTF-8 fallback would garble such a page.
-  enc <- encoding %||% bf_charset(resp$type)
-  enc <- if (is.null(enc)) "" else bf_charset_name(enc)
+  enc <- encoding %||% sc_charset(resp$type)
+  enc <- if (is.null(enc)) "" else sc_charset_name(enc)
   xml2::read_html(resp$content, encoding = enc, base_url = resp$url)
 }
 
 # A URL is read; a response is passed through; anything else is refused here,
 # rather than failing later on `$` with a message that names neither.
-bf_as_response <- function(resp) {
+sc_as_response <- function(resp) {
   if (is.character(resp) && length(resp) == 1L && !is.na(resp)) {
     return(read_page(resp))
   }
@@ -112,17 +112,17 @@ bf_as_response <- function(resp) {
 
 # A status outside 200--299 is an error. A status of 0 is no HTTP status at
 # all (a `file://` URL), and passes.
-bf_check_status <- function(resp) {
+sc_check_status <- function(resp) {
   status <- as.integer(resp$status_code %||% NA_integer_)
   if (is.na(status) || status == 0L || (status >= 200L && status < 300L)) {
     return(invisible(resp))
   }
-  stop(bf_error("safeconduct_http_error", paste0(
+  stop(sc_error("safeconduct_http_error", paste0(
     "'", resp$url, "' answered with HTTP status ", status, "."),
     status = status, url = resp$url))
 }
 
-bf_charset <- function(type) {
+sc_charset <- function(type) {
   if (is.null(type) || is.na(type)) return(NULL)
   m <- regmatches(type, regexec("charset\\s*=\\s*\"?([^\";[:space:]]+)", type,
                                 ignore.case = TRUE))[[1]]
@@ -132,7 +132,7 @@ bf_charset <- function(type) {
 # The name iconv is given: upper case, with the labels browsers read as
 # windows-1252 mapped to it, since pages labelled ISO-8859-1 routinely carry
 # its curly quotes and dashes in 0x80--0x9F.
-bf_charset_name <- function(encoding) {
+sc_charset_name <- function(encoding) {
   enc <- toupper(encoding)
   if (enc %in% c("ISO-8859-1", "ISO8859-1", "ISO_8859-1", "LATIN1", "L1",
                  "US-ASCII", "ASCII", "CP1252")) {
@@ -141,14 +141,14 @@ bf_charset_name <- function(encoding) {
   enc
 }
 
-bf_has_bom <- function(x) {
+sc_has_bom <- function(x) {
   length(x) >= 3L && identical(x[1:3], as.raw(c(0xef, 0xbb, 0xbf)))
 }
 
-bf_decode <- function(x, encoding, url) {
-  enc <- bf_charset_name(encoding)
+sc_decode <- function(x, encoding, url) {
+  enc <- sc_charset_name(encoding)
   fail <- function(why) {
-    stop(bf_error("safeconduct_parse_error", paste0(
+    stop(sc_error("safeconduct_parse_error", paste0(
       "Could not decode the body of '", url, "' as ", encoding, ": ", why),
       url = url))
   }

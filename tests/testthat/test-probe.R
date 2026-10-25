@@ -19,7 +19,7 @@ test_that("a Cloudflare block page is recognized by status, server and body", {
 })
 
 test_that("a response is described from its headers and, for a 403, its body", {
-  d <- bf_describe_response(206, paste0(
+  d <- sc_describe_response(206, paste0(
     "HTTP/2 206\r\nContent-Type: Application/ZIP\r\n",
     "content-range: bytes 0-0/310000000\r\ncontent-length: 1\r\n\r\n"),
     as.raw(0L))
@@ -30,25 +30,25 @@ test_that("a response is described from its headers and, for a 403, its body", {
   expect_identical(d$type, "application/zip")
   expect_identical(d$size, 310000000)
 
-  d <- bf_describe_response(200, "HTTP/2 200\r\ncontent-length: 4096\r\n\r\n")
+  d <- sc_describe_response(200, "HTTP/2 200\r\ncontent-length: 4096\r\n\r\n")
   expect_identical(d$size, 4096)
   expect_identical(d$type, NA_character_)
-  expect_false(bf_needs_browser(d))
+  expect_false(sc_needs_browser(d))
 
-  d <- bf_describe_response(403, "HTTP/2 403\r\ncf-mitigated: challenge\r\n\r\n")
+  d <- sc_describe_response(403, "HTTP/2 403\r\ncf-mitigated: challenge\r\n\r\n")
   expect_true(d$challenged)
   expect_false(d$blocked)
   expect_identical(d$size, NA_real_)
-  expect_true(bf_needs_browser(d))
+  expect_true(sc_needs_browser(d))
 
-  d <- bf_describe_response(403, paste0(
+  d <- sc_describe_response(403, paste0(
     "HTTP/2 403\r\nserver: cloudflare\r\ncontent-type: text/html; charset=UTF-8\r\n",
     "set-cookie: __cf_bm=abc; Path=/\r\n\r\n"), charToRaw(block_page))
   expect_false(d$challenged)
   expect_true(d$blocked)
-  expect_true(bf_needs_browser(d))
+  expect_true(sc_needs_browser(d))
 
-  d <- bf_describe_response(403, "HTTP/2 403\r\nserver: cloudflare\r\n\r\n",
+  d <- sc_describe_response(403, "HTTP/2 403\r\nserver: cloudflare\r\n\r\n",
                             charToRaw("Forbidden"))
   expect_false(d$blocked)
 })
@@ -67,10 +67,10 @@ test_that("a handle takes a clearance", {
 })
 
 test_that("URLs are split as expected", {
-  expect_identical(bf_url_host("https://www12.statcan.gc.ca/a/b.zip"),
+  expect_identical(sc_url_host("https://www12.statcan.gc.ca/a/b.zip"),
                    "www12.statcan.gc.ca")
-  expect_identical(bf_url_host("http://example.org"), "example.org")
-  expect_identical(bf_host_root("https://www12.statcan.gc.ca/a/b.zip"),
+  expect_identical(sc_url_host("http://example.org"), "example.org")
+  expect_identical(sc_host_root("https://www12.statcan.gc.ca/a/b.zip"),
                    "https://www12.statcan.gc.ca/")
-  expect_identical(bf_host_root("https://example.org"), "https://example.org/")
+  expect_identical(sc_host_root("https://example.org"), "https://example.org/")
 })

@@ -35,7 +35,7 @@
 #' is_challenge("HTTP/2 200\r\ncontent-type: application/zip\r\n\r\n")
 #' @export
 is_challenge <- function(headers) {
-  h <- bf_parse_headers(headers)
+  h <- sc_parse_headers(headers)
   identical(tolower(h[["cf-mitigated"]] %||% ""), "challenge")
 }
 
@@ -58,23 +58,23 @@ is_challenge <- function(headers) {
 #' @export
 is_block <- function(status, headers, body = NULL) {
   if (!identical(as.integer(status), 403L)) return(FALSE)
-  h <- bf_parse_headers(headers)
+  h <- sc_parse_headers(headers)
   if (!identical(tolower(h[["server"]] %||% ""), "cloudflare")) return(FALSE)
   if (is.null(body) || !nzchar(body)) return(FALSE)
-  grepl(bf_block_markers, body, perl = TRUE)
+  grepl(sc_block_markers, body, perl = TRUE)
 }
 
-bf_block_markers <- paste(
+sc_block_markers <- paste(
   "cf-error-details", "Attention Required! \\| Cloudflare",
   "Sorry, you have been blocked", sep = "|")
 
 # Does what the probe saw call for a browser?
-bf_needs_browser <- function(p) isTRUE(p$challenged) || isTRUE(p$blocked)
+sc_needs_browser <- function(p) isTRUE(p$challenged) || isTRUE(p$blocked)
 
 # Headers as a named list with lower-case names, whatever they came as: the
 # raw block from curl, curl's parsed list, or the object a DevTools event
 # carries, whose names keep the case the server sent.
-bf_parse_headers <- function(headers) {
+sc_parse_headers <- function(headers) {
   if (is.list(headers)) {
     names(headers) <- tolower(names(headers))
     return(headers)
@@ -117,13 +117,13 @@ probe <- function(url, clearance = NULL) {
                 blocked = FALSE, type = NA_character_, size = NA_real_,
                 headers = list()))
   }
-  bf_describe_response(res$status_code, rawToChar(res$headers), res$content)
+  sc_describe_response(res$status_code, rawToChar(res$headers), res$content)
 }
 
 # `body` is only looked at for a 403 page, so that the single byte of a real
 # ranged resource, which may well be a NUL, is never turned into a string.
-bf_describe_response <- function(status, headers, body = NULL) {
-  h <- bf_parse_headers(headers)
+sc_describe_response <- function(status, headers, body = NULL) {
+  h <- sc_parse_headers(headers)
   size <- suppressWarnings(as.numeric(h[["content-length"]] %||% NA))
   range <- h[["content-range"]] %||% ""
   if (grepl("/[0-9]+$", range)) {
@@ -132,7 +132,7 @@ bf_describe_response <- function(status, headers, body = NULL) {
   type <- tolower(h[["content-type"]] %||% NA_character_)
   blocked <- FALSE
   if (identical(as.integer(status), 403L) && !is.null(body)) {
-    text <- if (is.raw(body)) bf_raw_text(body) else body
+    text <- if (is.raw(body)) sc_raw_text(body) else body
     blocked <- is_block(status, h, text)
   }
   list(reachable = TRUE, status = as.integer(status),
@@ -141,7 +141,7 @@ bf_describe_response <- function(status, headers, body = NULL) {
 }
 
 # A raw body as text, with any embedded NULs dropped rather than fatal.
-bf_raw_text <- function(x) {
+sc_raw_text <- function(x) {
   if (length(x) == 0L) return("")
   rawToChar(x[x != as.raw(0L)])
 }
