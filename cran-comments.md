@@ -13,6 +13,15 @@ from R by the usual means. That broke functionality in the cancensus package,
 which downloads such files on its users' behalf, and in every script that
 fetched them directly.
 
+Statistics Canada is not alone. The City of Vancouver's Open Data portal
+has moved its large file downloads behind a Cloudflare check as well. The
+VancouvR package is itself unaffected, since the API it talks to and the
+download links it serves work as before and nothing in the package starts a
+download, but a user who follows one of those links programmatically fails
+unless the download goes through safeconduct. As more public data moves
+behind such checks, the need for this is broader than one package or one
+agency.
+
 safeconduct restores that access as a drop-in replacement for the download:
 `safeconduct::fetch(url, destfile)` in place of `download.file(url, destfile)`.
 It makes the plain request first, and when the file is served, that is the
