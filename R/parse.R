@@ -10,47 +10,32 @@
 #' Parse a response from read_page()
 #'
 #' `page_text()` decodes the body to a UTF-8 string, `page_json()` parses it
-#' as JSON with [jsonlite::fromJSON()], and `page_html()` parses it as HTML
-#' with [xml2::read_html()].
+#' with [jsonlite::fromJSON()], and `page_html()` with [xml2::read_html()].
 #'
-#' The charset is taken from the response's `content-type`. Without one,
-#' `page_text()` and `page_json()` assume UTF-8 (JSON is UTF-8 by
-#' definition), while `page_html()` leaves it to the page's own
-#' `<meta charset>`, falling back to UTF-8 only when there is none. ISO-8859-1
-#' is read as windows-1252, as browsers do. A body that is not valid in its
-#' charset is an error, not silently patched.
-#'
-#' A status check catches an error page that is sent as one. Some servers
-#' redirect a missing page to a "not found" page served with status 200
-#' instead; for a JSON request, `page_json()` catches that by refusing an HTML
-#' body, while for a page, compare `resp$url` with the URL asked for.
+#' The charset comes from the response's `content-type`; without one,
+#' `page_text()` and `page_json()` assume UTF-8 and `page_html()` leaves it
+#' to the page's own `<meta charset>`. ISO-8859-1 is read as windows-1252, as
+#' browsers do. A body that is not valid in its charset is an error. A "not
+#' found" page served with status 200 passes the status check; `page_json()`
+#' refuses an HTML body, and for a page, compare `resp$url` with the URL
+#' asked for.
 #'
 #' @param resp A response from [read_page()], or a URL, which is then read
-#'   with [read_page()]'s defaults: `page_html(url)` stands in for
-#'   `rvest::read_html(url)`. To read through a [browser_session()], call
-#'   [read_page()] yourself and pass its response.
-#' @param encoding The body's charset, overriding the one in the response's
-#'   `content-type`.
+#'   with [read_page()]'s defaults, so that `page_html(url)` stands in for
+#'   `rvest::read_html(url)`.
+#' @param encoding The body's charset, overriding the response's.
 #' @param check Whether an HTTP status outside 200--299 is an error.
 #' @param ... Passed on to [jsonlite::fromJSON()].
-#' @return `page_text()`: a character string, in UTF-8. `page_json()`: what
-#'   [jsonlite::fromJSON()] returns. `page_html()`: an `xml_document`, whose
-#'   relative links resolve against `resp$url`, the URL after any redirects.
-#'
-#'   Errors are classed under `safeconduct_error`: `safeconduct_http_error`
-#'   for a status outside 200--299, carrying `status` and `url`, and
-#'   `safeconduct_parse_error` for a body that cannot be decoded, or HTML
-#'   where JSON was asked for.
+#' @return `page_text()`: a UTF-8 string. `page_json()`: what
+#'   [jsonlite::fromJSON()] returns. `page_html()`: an `xml_document` whose
+#'   relative links resolve against `resp$url`. Errors are classed under
+#'   `safeconduct_error`: `safeconduct_http_error` for a status outside
+#'   200--299, carrying `status` and `url`, and `safeconduct_parse_error` for
+#'   a body that cannot be decoded, or HTML where JSON was asked for.
 #' @examples
 #' \dontrun{
-#' r <- read_page("https://results.vancouver.ca/data/arearesults.json")
-#' page_json(r)
-#'
-#' r <- read_page("https://www12.statcan.gc.ca/census-recensement/index-fra.cfm")
-#' xml2::xml_text(xml2::xml_find_first(page_html(r), "//title"))
-#'
-#' # In one step, with read_page()'s defaults.
-#' page_html("https://www12.statcan.gc.ca/census-recensement/index-fra.cfm")
+#' page_json("https://results.vancouver.ca/data/arearesults.json")
+#' page_html("https://www12.statcan.gc.ca/census-recensement/index-eng.cfm")
 #' }
 #' @export
 page_text <- function(resp, encoding = NULL, check = TRUE) {

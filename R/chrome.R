@@ -54,10 +54,9 @@
 
 #' Can this package open a browser here?
 #'
-#' @return `TRUE`, or `FALSE` with a `reason` attribute saying what is
-#'   missing: the `safeconduct.browser` option set to `FALSE`, or no Chrome
-#'   or Chromium found (set the `CHROMOTE_CHROME` environment variable to
-#'   its path).
+#' @return `TRUE`, or `FALSE` with a `reason` attribute: the
+#'   `safeconduct.browser` option is `FALSE`, or no Chrome or Chromium was
+#'   found (the `CHROMOTE_CHROME` environment variable points at one).
 #' @examples
 #' browser_available()
 #' attr(browser_available(), "reason")

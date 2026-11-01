@@ -2,7 +2,7 @@
 % Please edit documentation in R/fetch.R
 \name{read_page}
 \alias{read_page}
-\title{Read a resource into memory, through a browser if the server insists}
+\title{Read a page or a feed into memory, through a browser if the server insists}
 \usage{
 read_page(
   url,
@@ -16,53 +16,39 @@ read_page(
 \arguments{
 \item{url}{The file's URL.}
 
-\item{session}{A browser session from \code{\link[=browser_session]{browser_session()}} on the
-resource's host. When given, the resource is read in that browser
-without any probing.}
+\item{session}{A \code{\link[=browser_session]{browser_session()}} on the host. The page is then read in
+that browser without probing.}
 
 \item{quiet}{Suppress progress messages.}
 
 \item{timeout}{Seconds a read in the browser may take.}
 
-\item{headed}{How to run the browser, when one is needed: \code{"auto"}, the
-default, tries headless Chrome first and opens a window only when the
-headless run does not get through, so that a window is shown only when
-someone may need to click; \code{TRUE} opens a window at once and \code{FALSE}
-never does. Without a display \code{"auto"} is headless. A host may run a
-second check at the file's URL, after the one at its root; headless
-Chrome has passed such a check with nothing clicked, but only after
-about two minutes, where a window shows a box that gets it through as
-soon as it is clicked. \code{"auto"} waits those minutes and opens a window
-if they pass without; \code{TRUE} skips the wait.}
+\item{headed}{How to run the browser when one is needed. \code{"auto"}, the
+default, runs headless and opens a window only when the headless run
+ends on a check or a block and there is a display to show it on; \code{TRUE}
+opens a window at once; \code{FALSE} never does. A second check, at the
+file's URL, takes headless Chrome about two minutes to pass unclicked,
+where a window is through as soon as its box is clicked: \code{"auto"} waits
+those minutes before opening a window, \code{TRUE} skips the wait.}
 
-\item{useragent}{The user-agent string the browser announces. Headless
-Chrome's own calls it \code{HeadlessChrome}, and some hosts refuse it on that
-word alone. \code{TRUE}, the default, drops the word, so that the string says
-the Chrome version and platform it is and nothing it is not; \code{NULL}
-leaves Chrome's own string; a string is used as given. Set before the
-browser's first request, and what \code{\link[=clearance]{clearance()}} then reports.}
+\item{useragent}{The browser's user-agent string. \code{TRUE}, the default,
+drops the word \code{Headless} from Chrome's own string, which some hosts
+refuse on that word alone, and changes nothing else; \code{NULL} leaves
+Chrome's own; a string is used as given.}
 }
 \value{
-A list: \code{url} (the final URL), \code{status_code}, \code{type} (the
+A list: \code{url} (after redirects), \code{status_code}, \code{type} (the
 \code{content-type}, lower case), \code{headers} (a named list) and \code{content}
-(raw). An HTTP error status is returned, not raised; \code{content} is then
-the error page. Errors are classed as \code{\link[=fetch]{fetch()}}'s are. Parse it with
-\code{\link[=page_text]{page_text()}}, \code{\link[=page_json]{page_json()}} or \code{\link[=page_html]{page_html()}}.
+(raw). An HTTP error status is returned, not raised. Parse it with
+\code{\link[=page_text]{page_text()}}, \code{\link[=page_json]{page_json()}} or \code{\link[=page_html]{page_html()}}. Errors as \code{\link[=fetch]{fetch()}}'s.
 }
 \description{
-The counterpart of \code{\link[=fetch]{fetch()}} for a page or a feed rather than a file: the
-response is returned instead of written to disk, in the shape of
-\code{\link[curl:curl_fetch_memory]{curl::curl_fetch_memory()}}'s. The same path is taken: curl where a plain
-request is served, curl carrying the browser's clearance where the server
-accepts that, and the browser itself where it does not, in which case the
-resource is read by the page the browser holds on the host.
-}
-\details{
-Without a \code{session}, a browser is opened and closed per call. For a feed
-that is read every few minutes, open a \code{\link[=browser_session]{browser_session()}} once and pass
-it: the resource is then read in that browser, and if the server asks the
-browser for a check again meanwhile, the check is passed and the read
-repeated.
+\code{\link[=fetch]{fetch()}} for a page or a feed: the response is returned rather than
+written to disk, shaped like \code{\link[curl:curl_fetch_memory]{curl::curl_fetch_memory()}}'s, by the same
+route; where only the browser is served, the page the browser holds on
+the host reads it. For a feed read every few minutes, pass a
+\code{\link[=browser_session]{browser_session()}} instead of opening a browser per call; a check the
+host asks for again meanwhile is passed and the read repeated.
 }
 \examples{
 \dontrun{

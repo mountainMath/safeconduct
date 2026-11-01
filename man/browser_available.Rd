@@ -7,10 +7,9 @@
 browser_available()
 }
 \value{
-\code{TRUE}, or \code{FALSE} with a \code{reason} attribute saying what is
-missing: the \code{safeconduct.browser} option set to \code{FALSE}, or no Chrome
-or Chromium found (set the \code{CHROMOTE_CHROME} environment variable to
-its path).
+\code{TRUE}, or \code{FALSE} with a \code{reason} attribute: the
+\code{safeconduct.browser} option is \code{FALSE}, or no Chrome or Chromium was
+found (the \code{CHROMOTE_CHROME} environment variable points at one).
 }
 \description{
 Can this package open a browser here?

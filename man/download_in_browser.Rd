@@ -22,32 +22,26 @@ download_in_browser(
 
 \item{timeout}{Seconds a transfer in the browser may take.}
 
-\item{headed}{How to run the browser, when one is needed: \code{"auto"}, the
-default, tries headless Chrome first and opens a window only when the
-headless run does not get through, so that a window is shown only when
-someone may need to click; \code{TRUE} opens a window at once and \code{FALSE}
-never does. Without a display \code{"auto"} is headless. A host may run a
-second check at the file's URL, after the one at its root; headless
-Chrome has passed such a check with nothing clicked, but only after
-about two minutes, where a window shows a box that gets it through as
-soon as it is clicked. \code{"auto"} waits those minutes and opens a window
-if they pass without; \code{TRUE} skips the wait.}
+\item{headed}{How to run the browser when one is needed. \code{"auto"}, the
+default, runs headless and opens a window only when the headless run
+ends on a check or a block and there is a display to show it on; \code{TRUE}
+opens a window at once; \code{FALSE} never does. A second check, at the
+file's URL, takes headless Chrome about two minutes to pass unclicked,
+where a window is through as soon as its box is clicked: \code{"auto"} waits
+those minutes before opening a window, \code{TRUE} skips the wait.}
 
-\item{useragent}{The user-agent string the browser announces. Headless
-Chrome's own calls it \code{HeadlessChrome}, and some hosts refuse it on that
-word alone. \code{TRUE}, the default, drops the word, so that the string says
-the Chrome version and platform it is and nothing it is not; \code{NULL}
-leaves Chrome's own string; a string is used as given. Set before the
-browser's first request, and what \code{\link[=clearance]{clearance()}} then reports.}
+\item{useragent}{The browser's user-agent string. \code{TRUE}, the default,
+drops the word \code{Headless} from Chrome's own string, which some hosts
+refuse on that word alone, and changes nothing else; \code{NULL} leaves
+Chrome's own; a string is used as given.}
 }
 \value{
-\code{destfile}, invisibly. Errors as \code{\link[=fetch]{fetch()}} does.
+\code{destfile}, invisibly. Errors as \code{\link[=fetch]{fetch()}}'s.
 }
 \description{
-Opens a Chrome with a throwaway profile on the host, lets any browser
-check run, and downloads \code{url} in it; a window stays open until the
-transfer is done. \code{\link[=fetch]{fetch()}} does this only when it has to; this is for
-when the browser is wanted regardless.
+Opens a Chrome with a throwaway profile on the host, lets any check run,
+and downloads \code{url} in it, with no plain request first. \code{\link[=fetch]{fetch()}} does
+this only when it has to.
 }
 \examples{
 \dontrun{

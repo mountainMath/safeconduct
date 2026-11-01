@@ -13,24 +13,19 @@ probe(url, clearance = NULL)
 that earned it; \code{NULL} probes as a plain client.}
 }
 \value{
-A list: \code{reachable} (was any response had), \code{status} (the HTTP
-status, \code{NA} when unreachable), \code{challenged} (see \code{\link[=is_challenge]{is_challenge()}}),
-\code{blocked} (see \code{\link[=is_block]{is_block()}}), \code{type} (the \code{content-type}, lower case),
-\code{size} (the resource's length in bytes, taken from \code{content-range} when
-the request was answered with a range, else \code{content-length}; \code{NA} when
-unknown) and \code{headers} (the parsed list). A browser is called for when
-\code{challenged} or \code{blocked} is \code{TRUE}.
+A list: \code{reachable}, \code{status} (\code{NA} when unreachable),
+\code{challenged} (\code{\link[=is_challenge]{is_challenge()}}), \code{blocked} (\code{\link[=is_block]{is_block()}}), \code{type} (the
+\code{content-type}, lower case), \code{size} (bytes, from \code{content-range} or
+\code{content-length}, \code{NA} when unknown) and \code{headers} (a named list). A
+browser is called for when \code{challenged} or \code{blocked} is \code{TRUE}.
 }
 \description{
-Sends a ranged \code{GET} for the first byte, so that the answer carries the
-resource's real headers without the resource, and reports what came back.
-A \code{HEAD} is not used because some servers answer it differently from a
-\code{GET}; a one-byte range is answered like the full request.
+Sends a \code{GET} for the first byte, so that the answer carries the
+resource's headers without the resource; a \code{HEAD} is not used because
+some servers answer it differently.
 }
 \examples{
 \dontrun{
-url <- paste0("https://www12.statcan.gc.ca/census-recensement/2021/",
-              "geo/sip-pis/rnf-frr/files-fichiers/lrnf000r21a_e.zip")
-probe(url)
+probe("https://www12.statcan.gc.ca/census-recensement/index-eng.cfm")
 }
 }

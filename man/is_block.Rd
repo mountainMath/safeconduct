@@ -9,21 +9,20 @@ is_block(status, headers, body = NULL)
 \arguments{
 \item{status}{The HTTP status code.}
 
-\item{headers}{The response headers, either as the raw header block
-(one string, lines separated by \verb{\\r\\n}) or as a named list such as
+\item{headers}{The response headers, as the raw header block (one string,
+lines separated by \verb{\\r\\n}) or as a named list such as
 \code{\link[curl:parse_headers_list]{curl::parse_headers_list()}} makes of it.}
 
 \item{body}{The response body, as a string.}
 }
 \value{
-\code{TRUE} when the response is Cloudflare's block page: a \code{403}
-from \code{server: cloudflare} whose body is the "Sorry, you have been
-blocked" page.
+\code{TRUE} for that page: a \code{403} from \code{server: cloudflare} whose body
+says "Sorry, you have been blocked".
 }
 \description{
-Some servers do not check a client that does not look like a browser but
-refuse it outright. Cloudflare's firewall does so with a \code{403} and its own
-block page; a real browser is served the resource instead.
+Cloudflare's firewall can refuse a client that does not look like a
+browser outright, with a \code{403} and its own block page, while a real
+browser is served.
 }
 \examples{
 is_block(403, "HTTP/2 403\r\nserver: cloudflare\r\n\r\n",

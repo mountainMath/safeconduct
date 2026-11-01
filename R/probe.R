@@ -23,12 +23,11 @@
 
 #' Does a response carry a browser check instead of the resource?
 #'
-#' @param headers The response headers, either as the raw header block
-#'   (one string, lines separated by `\r\n`) or as a named list such as
+#' @param headers The response headers, as the raw header block (one string,
+#'   lines separated by `\r\n`) or as a named list such as
 #'   [curl::parse_headers_list()] makes of it.
-#' @return `TRUE` when the response is a browser check that a real browser
-#'   would pass. Recognized today: Cloudflare's, by its `cf-mitigated:
-#'   challenge` header.
+#' @return `TRUE` for a check a real browser would pass: Cloudflare's, by its
+#'   `cf-mitigated: challenge` header.
 #' @seealso [is_block()] for the other refusal a browser gets past.
 #' @examples
 #' is_challenge("HTTP/2 403\r\ncf-mitigated: challenge\r\n\r\n")
@@ -41,16 +40,15 @@ is_challenge <- function(headers) {
 
 #' Is a response a block page that a browser would not be shown?
 #'
-#' Some servers do not check a client that does not look like a browser but
-#' refuse it outright. Cloudflare's firewall does so with a `403` and its own
-#' block page; a real browser is served the resource instead.
+#' Cloudflare's firewall can refuse a client that does not look like a
+#' browser outright, with a `403` and its own block page, while a real
+#' browser is served.
 #'
 #' @inheritParams is_challenge
 #' @param status The HTTP status code.
 #' @param body The response body, as a string.
-#' @return `TRUE` when the response is Cloudflare's block page: a `403`
-#'   from `server: cloudflare` whose body is the "Sorry, you have been
-#'   blocked" page.
+#' @return `TRUE` for that page: a `403` from `server: cloudflare` whose body
+#'   says "Sorry, you have been blocked".
 #' @examples
 #' is_block(403, "HTTP/2 403\r\nserver: cloudflare\r\n\r\n",
 #'          "<html><title>Attention Required! | Cloudflare</title>...")
@@ -85,26 +83,21 @@ sc_parse_headers <- function(headers) {
 
 #' Ask a server what it serves at a URL
 #'
-#' Sends a ranged `GET` for the first byte, so that the answer carries the
-#' resource's real headers without the resource, and reports what came back.
-#' A `HEAD` is not used because some servers answer it differently from a
-#' `GET`; a one-byte range is answered like the full request.
+#' Sends a `GET` for the first byte, so that the answer carries the
+#' resource's headers without the resource; a `HEAD` is not used because
+#' some servers answer it differently.
 #'
 #' @param url The URL.
 #' @param clearance A clearance from [clearance()], to probe as the browser
 #'   that earned it; `NULL` probes as a plain client.
-#' @return A list: `reachable` (was any response had), `status` (the HTTP
-#'   status, `NA` when unreachable), `challenged` (see [is_challenge()]),
-#'   `blocked` (see [is_block()]), `type` (the `content-type`, lower case),
-#'   `size` (the resource's length in bytes, taken from `content-range` when
-#'   the request was answered with a range, else `content-length`; `NA` when
-#'   unknown) and `headers` (the parsed list). A browser is called for when
-#'   `challenged` or `blocked` is `TRUE`.
+#' @return A list: `reachable`, `status` (`NA` when unreachable),
+#'   `challenged` ([is_challenge()]), `blocked` ([is_block()]), `type` (the
+#'   `content-type`, lower case), `size` (bytes, from `content-range` or
+#'   `content-length`, `NA` when unknown) and `headers` (a named list). A
+#'   browser is called for when `challenged` or `blocked` is `TRUE`.
 #' @examples
 #' \dontrun{
-#' url <- paste0("https://www12.statcan.gc.ca/census-recensement/2021/",
-#'               "geo/sip-pis/rnf-frr/files-fichiers/lrnf000r21a_e.zip")
-#' probe(url)
+#' probe("https://www12.statcan.gc.ca/census-recensement/index-eng.cfm")
 #' }
 #' @export
 probe <- function(url, clearance = NULL) {
@@ -148,9 +141,9 @@ sc_raw_text <- function(x) {
 
 #' A curl handle that carries a clearance
 #'
-#' The browser's user-agent string and its cookies have to go on a request
-#' together: Cloudflare ties the clearance cookie to the user agent that
-#' earned it, and the cookie alone is answered with the check again.
+#' The user-agent string and the cookies go on a request together: Cloudflare
+#' ties the clearance cookie to the user agent that earned it, and the cookie
+#' alone is answered with the check again.
 #'
 #' @param clearance A clearance from [clearance()], or `NULL` for a plain
 #'   handle.

@@ -23,87 +23,62 @@ fetch(
 
 \item{timeout}{Seconds a transfer in the browser may take.}
 
-\item{session}{A browser session from \code{\link[=browser_session]{browser_session()}}. When given,
-the file is downloaded in that browser without any probing, and the
-browser stays open afterwards; \code{headed} and \code{useragent} are then the
-session's. A browser that has gone away -- its window closed -- is
-opened again first.}
+\item{session}{A \code{\link[=browser_session]{browser_session()}}. The file is then downloaded in that
+browser without probing, with the session's \code{headed} and \code{useragent},
+and the browser stays open; one that has gone away is reopened first.}
 
-\item{headed}{How to run the browser, when one is needed: \code{"auto"}, the
-default, tries headless Chrome first and opens a window only when the
-headless run does not get through, so that a window is shown only when
-someone may need to click; \code{TRUE} opens a window at once and \code{FALSE}
-never does. Without a display \code{"auto"} is headless. A host may run a
-second check at the file's URL, after the one at its root; headless
-Chrome has passed such a check with nothing clicked, but only after
-about two minutes, where a window shows a box that gets it through as
-soon as it is clicked. \code{"auto"} waits those minutes and opens a window
-if they pass without; \code{TRUE} skips the wait.}
+\item{headed}{How to run the browser when one is needed. \code{"auto"}, the
+default, runs headless and opens a window only when the headless run
+ends on a check or a block and there is a display to show it on; \code{TRUE}
+opens a window at once; \code{FALSE} never does. A second check, at the
+file's URL, takes headless Chrome about two minutes to pass unclicked,
+where a window is through as soon as its box is clicked: \code{"auto"} waits
+those minutes before opening a window, \code{TRUE} skips the wait.}
 
-\item{useragent}{The user-agent string the browser announces. Headless
-Chrome's own calls it \code{HeadlessChrome}, and some hosts refuse it on that
-word alone. \code{TRUE}, the default, drops the word, so that the string says
-the Chrome version and platform it is and nothing it is not; \code{NULL}
-leaves Chrome's own string; a string is used as given. Set before the
-browser's first request, and what \code{\link[=clearance]{clearance()}} then reports.}
+\item{useragent}{The browser's user-agent string. \code{TRUE}, the default,
+drops the word \code{Headless} from Chrome's own string, which some hosts
+refuse on that word alone, and changes nothing else; \code{NULL} leaves
+Chrome's own; a string is used as given.}
 }
 \value{
 \code{destfile}, invisibly. Errors are classed under
 \code{safeconduct_error}: \code{safeconduct_unavailable} when no browser can be
-opened here (its message says what is missing),
-\code{safeconduct_not_passed} when the check was not passed in time or the
-server blocks the browser as well, and \code{safeconduct_download_error}
-when the transfer itself failed.
+opened here, \code{safeconduct_not_passed} when the check was not passed in
+time or the server blocks the browser too, with a \code{reason} field, and
+\code{safeconduct_download_error} when the transfer failed.
 }
 \description{
-Fetches \code{url} to \code{destfile}. A server that serves the file to a plain
-request is fetched with curl and no browser is involved. A server that
-refuses a plain request in a way a browser gets past -- a browser check
-(see \code{\link[=is_challenge]{is_challenge()}}) or a block page (see \code{\link[=is_block]{is_block()}}) -- gets one: a
-Chrome with a throwaway profile is opened on the host, the check runs if
-there is one, and the file is then downloaded, through curl carrying the
-clearance the browser was given where the server accepts that, and in the
-browser itself where it does not. A clearance that curl can use is kept
-for the rest of the R session, so later files from the same host need no
-browser.
+Fetches \code{url} to \code{destfile}. A plain request is made first, and if the
+file comes no browser is involved. If the server answers with a browser
+check (\code{\link[=is_challenge]{is_challenge()}}) or a block page (\code{\link[=is_block]{is_block()}}), a Chrome with a
+throwaway profile is opened on the host, any check runs, and the file is
+downloaded: through curl carrying the browser's clearance where the server
+accepts that, and in the browser itself where it does not. A clearance
+curl can use is kept for the rest of the R session, so later files from
+the host need no browser.
 }
 \details{
-Nothing is simulated. When the check shows a "Verify you are human" box,
-the window stays on screen for up to two minutes for the person at the
-screen to click it; nothing in this package clicks it for them.
-
-A file downloaded in the browser lands under \code{\link[=tempdir]{tempdir()}} and is moved to
-\code{destfile} when complete; nothing is written next to \code{destfile} meanwhile.
+Nothing is simulated. A check that shows a "Verify you are human" box
+waits in a window, for up to two minutes, for a person to click it. A
+file downloaded in the browser lands under \code{\link[=tempdir]{tempdir()}} and is moved to
+\code{destfile} when complete.
 }
 \section{Requirements}{
 
-A Chrome or Chromium installation, found by \code{\link[chromote:find_chrome]{chromote::find_chrome()}} (set
-the \code{CHROMOTE_CHROME} environment variable if it is somewhere unusual).
-By default Chrome runs headless first, and a window is opened only when
-the headless run ends on a check or a block and there is a display to
-show it on; the \code{headed} argument changes that. Headless Chrome under its
-own name does not pass a Cloudflare managed challenge, as of October
-2026, but with the word \code{Headless} dropped from its user-agent string,
-which is the default, it has. Set \code{options(safeconduct.browser = FALSE)}
-to never open a browser. The window is 1000 by 800 pixels;
-\code{options(safeconduct.window = c(width, height))} opens one of another size
-in pixels, and \code{"maximized"} a maximized one. Experimentally,
-\code{options(safeconduct.focus = "<css selector>")} pins the element that
-holds the check to the window's top left corner, enlarged by
-\code{options(safeconduct.zoom)} (1.5 by default), and hides the rest of the
-page; unset, the page is shown as it is.
+Chrome or Chromium, found by \code{\link[chromote:find_chrome]{chromote::find_chrome()}}; the
+\code{CHROMOTE_CHROME} environment variable points at one somewhere unusual,
+and \code{\link[=browser_available]{browser_available()}} says whether one can be opened here.
+\code{options(safeconduct.browser = FALSE)} never opens a browser; the window's
+size and the other options are described in \link{safeconduct-package}.
 }
 
 \section{Tips}{
 
-At the console, in an interactive session, once a host has been found to
-need a window or the browser for the transfer, a tip says how to skip the
-finding out next time: \code{headed = TRUE}, or a \code{\link[=browser_session]{browser_session()}} for
-several files or reads from the host. A tip is shown once per host and R
-session, and never when \code{quiet} is \code{TRUE}. Calls made from another
-package get no tips, since that package's user cannot act on them; nothing
-needs to be set for that. The tips are messages with the class
-\code{safeconduct_hint} as well, should anyone want to muffle them.
+At the console, once a host has been found to need a window or the browser
+for the transfer, a tip says how to skip the finding out next time:
+\code{headed = TRUE}, or a \code{\link[=browser_session]{browser_session()}}. Tips come once per host and R
+session, not when \code{quiet}, and not for calls made from another package.
+They are messages of class \code{safeconduct_hint}.
 }
 
 \examples{

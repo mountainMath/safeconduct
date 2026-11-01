@@ -13,19 +13,17 @@
 
 #' Keep a browser open on a host
 #'
-#' Opens a Chrome with a throwaway profile on the host, lets any browser
-#' check run, and keeps it open, for [read_page()] and [fetch()] to use
-#' through their `session` argument. Close it with [close()]; a session that
-#' is not closed lives until the R session ends. Should the browser go away
-#' meanwhile -- its window closed, say -- the next read or download opens
-#' another, the same way, and says so.
+#' Opens a Chrome with a throwaway profile on the host's root, lets any check
+#' run, and keeps it open for [read_page()] and [fetch()] through their
+#' `session` argument. Close it with [close()]; otherwise it lives until the
+#' R session ends. A browser that has gone away, its window closed, is
+#' reopened the same way at the next call, which says so.
 #'
 #' @inheritParams clearance
-#' @param url A URL on the host. The browser is opened on the host's root.
-#'   `headed` and `useragent` hold for the session's life, through any
-#'   reopening of its browser.
-#' @return An object of class `safeconduct_session`. Its `clearance` is what
-#'   [clearance()] would return. Errors as [fetch()] does.
+#' @param url A URL on the host. `headed` and `useragent` hold for the
+#'   session's life.
+#' @return A `safeconduct_session`, whose `clearance` is what [clearance()]
+#'   would return. Errors as [fetch()]'s.
 #' @examples
 #' \dontrun{
 #' s <- browser_session("https://results.vancouver.ca/")

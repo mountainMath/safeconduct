@@ -1,3 +1,12 @@
+#' @section Options:
+#' Behaviour switches are function arguments, so that nothing leaks between
+#' packages using safeconduct in one R session; the options are these.
+#' `safeconduct.browser = FALSE` never opens a browser. `safeconduct.window`
+#' sets the window's size, `c(width, height)` in pixels (1000 by 800 by
+#' default) or `"maximized"`. Experimentally, `safeconduct.focus`, a CSS
+#' selector, pins the element holding the check to the window's top left
+#' corner, enlarged by `safeconduct.zoom` (1.5), and hides the rest of the
+#' page.
 #' @keywords internal
 "_PACKAGE"
 

@@ -17,9 +17,9 @@ A curl handle with \code{followlocation} set, and the clearance's
 \code{useragent} and \code{cookie} when one was given.
 }
 \description{
-The browser's user-agent string and its cookies have to go on a request
-together: Cloudflare ties the clearance cookie to the user agent that
-earned it, and the cookie alone is answered with the check again.
+The user-agent string and the cookies go on a request together: Cloudflare
+ties the clearance cookie to the user agent that earned it, and the cookie
+alone is answered with the check again.
 }
 \examples{
 h <- clearance_handle(list(useragent = "Mozilla/5.0", cookie = "cf_clearance=x"))

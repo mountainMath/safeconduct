@@ -7,13 +7,13 @@
 is_challenge(headers)
 }
 \arguments{
-\item{headers}{The response headers, either as the raw header block
-(one string, lines separated by \verb{\\r\\n}) or as a named list such as
+\item{headers}{The response headers, as the raw header block (one string,
+lines separated by \verb{\\r\\n}) or as a named list such as
 \code{\link[curl:parse_headers_list]{curl::parse_headers_list()}} makes of it.}
 }
 \value{
-\code{TRUE} when the response is a browser check that a real browser
-would pass. Recognized today: Cloudflare's, by its \code{cf-mitigated: challenge} header.
+\code{TRUE} for a check a real browser would pass: Cloudflare's, by its
+\code{cf-mitigated: challenge} header.
 }
 \description{
 Does a response carry a browser check instead of the resource?

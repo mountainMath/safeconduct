@@ -23,82 +23,57 @@ sc_clearance_cache <- new.env(parent = emptyenv())
 
 #' Download a file, through a browser if the server insists on one
 #'
-#' Fetches `url` to `destfile`. A server that serves the file to a plain
-#' request is fetched with curl and no browser is involved. A server that
-#' refuses a plain request in a way a browser gets past -- a browser check
-#' (see [is_challenge()]) or a block page (see [is_block()]) -- gets one: a
-#' Chrome with a throwaway profile is opened on the host, the check runs if
-#' there is one, and the file is then downloaded, through curl carrying the
-#' clearance the browser was given where the server accepts that, and in the
-#' browser itself where it does not. A clearance that curl can use is kept
-#' for the rest of the R session, so later files from the same host need no
-#' browser.
+#' Fetches `url` to `destfile`. A plain request is made first, and if the
+#' file comes no browser is involved. If the server answers with a browser
+#' check ([is_challenge()]) or a block page ([is_block()]), a Chrome with a
+#' throwaway profile is opened on the host, any check runs, and the file is
+#' downloaded: through curl carrying the browser's clearance where the server
+#' accepts that, and in the browser itself where it does not. A clearance
+#' curl can use is kept for the rest of the R session, so later files from
+#' the host need no browser.
 #'
-#' Nothing is simulated. When the check shows a "Verify you are human" box,
-#' the window stays on screen for up to two minutes for the person at the
-#' screen to click it; nothing in this package clicks it for them.
-#'
-#' A file downloaded in the browser lands under [tempdir()] and is moved to
-#' `destfile` when complete; nothing is written next to `destfile` meanwhile.
+#' Nothing is simulated. A check that shows a "Verify you are human" box
+#' waits in a window, for up to two minutes, for a person to click it. A
+#' file downloaded in the browser lands under [tempdir()] and is moved to
+#' `destfile` when complete.
 #'
 #' @section Requirements:
-#' A Chrome or Chromium installation, found by [chromote::find_chrome()] (set
-#' the `CHROMOTE_CHROME` environment variable if it is somewhere unusual).
-#' By default Chrome runs headless first, and a window is opened only when
-#' the headless run ends on a check or a block and there is a display to
-#' show it on; the `headed` argument changes that. Headless Chrome under its
-#' own name does not pass a Cloudflare managed challenge, as of October
-#' 2026, but with the word `Headless` dropped from its user-agent string,
-#' which is the default, it has. Set `options(safeconduct.browser = FALSE)`
-#' to never open a browser. The window is 1000 by 800 pixels;
-#' `options(safeconduct.window = c(width, height))` opens one of another size
-#' in pixels, and `"maximized"` a maximized one. Experimentally,
-#' `options(safeconduct.focus = "<css selector>")` pins the element that
-#' holds the check to the window's top left corner, enlarged by
-#' `options(safeconduct.zoom)` (1.5 by default), and hides the rest of the
-#' page; unset, the page is shown as it is.
+#' Chrome or Chromium, found by [chromote::find_chrome()]; the
+#' `CHROMOTE_CHROME` environment variable points at one somewhere unusual,
+#' and [browser_available()] says whether one can be opened here.
+#' `options(safeconduct.browser = FALSE)` never opens a browser; the window's
+#' size and the other options are described in [safeconduct-package].
 #'
 #' @section Tips:
-#' At the console, in an interactive session, once a host has been found to
-#' need a window or the browser for the transfer, a tip says how to skip the
-#' finding out next time: `headed = TRUE`, or a [browser_session()] for
-#' several files or reads from the host. A tip is shown once per host and R
-#' session, and never when `quiet` is `TRUE`. Calls made from another
-#' package get no tips, since that package's user cannot act on them; nothing
-#' needs to be set for that. The tips are messages with the class
-#' `safeconduct_hint` as well, should anyone want to muffle them.
+#' At the console, once a host has been found to need a window or the browser
+#' for the transfer, a tip says how to skip the finding out next time:
+#' `headed = TRUE`, or a [browser_session()]. Tips come once per host and R
+#' session, not when `quiet`, and not for calls made from another package.
+#' They are messages of class `safeconduct_hint`.
 #'
 #' @param url The file's URL.
 #' @param destfile Where to write it. A failed transfer leaves nothing there.
 #' @param quiet Suppress progress messages.
-#' @param headed How to run the browser, when one is needed: `"auto"`, the
-#'   default, tries headless Chrome first and opens a window only when the
-#'   headless run does not get through, so that a window is shown only when
-#'   someone may need to click; `TRUE` opens a window at once and `FALSE`
-#'   never does. Without a display `"auto"` is headless. A host may run a
-#'   second check at the file's URL, after the one at its root; headless
-#'   Chrome has passed such a check with nothing clicked, but only after
-#'   about two minutes, where a window shows a box that gets it through as
-#'   soon as it is clicked. `"auto"` waits those minutes and opens a window
-#'   if they pass without; `TRUE` skips the wait.
-#' @param useragent The user-agent string the browser announces. Headless
-#'   Chrome's own calls it `HeadlessChrome`, and some hosts refuse it on that
-#'   word alone. `TRUE`, the default, drops the word, so that the string says
-#'   the Chrome version and platform it is and nothing it is not; `NULL`
-#'   leaves Chrome's own string; a string is used as given. Set before the
-#'   browser's first request, and what [clearance()] then reports.
+#' @param headed How to run the browser when one is needed. `"auto"`, the
+#'   default, runs headless and opens a window only when the headless run
+#'   ends on a check or a block and there is a display to show it on; `TRUE`
+#'   opens a window at once; `FALSE` never does. A second check, at the
+#'   file's URL, takes headless Chrome about two minutes to pass unclicked,
+#'   where a window is through as soon as its box is clicked: `"auto"` waits
+#'   those minutes before opening a window, `TRUE` skips the wait.
+#' @param useragent The browser's user-agent string. `TRUE`, the default,
+#'   drops the word `Headless` from Chrome's own string, which some hosts
+#'   refuse on that word alone, and changes nothing else; `NULL` leaves
+#'   Chrome's own; a string is used as given.
 #' @param timeout Seconds a transfer in the browser may take.
-#' @param session A browser session from [browser_session()]. When given,
-#'   the file is downloaded in that browser without any probing, and the
-#'   browser stays open afterwards; `headed` and `useragent` are then the
-#'   session's. A browser that has gone away -- its window closed -- is
-#'   opened again first.
+#' @param session A [browser_session()]. The file is then downloaded in that
+#'   browser without probing, with the session's `headed` and `useragent`,
+#'   and the browser stays open; one that has gone away is reopened first.
 #' @return `destfile`, invisibly. Errors are classed under
 #'   `safeconduct_error`: `safeconduct_unavailable` when no browser can be
-#'   opened here (its message says what is missing),
-#'   `safeconduct_not_passed` when the check was not passed in time or the
-#'   server blocks the browser as well, and `safeconduct_download_error`
-#'   when the transfer itself failed.
+#'   opened here, `safeconduct_not_passed` when the check was not passed in
+#'   time or the server blocks the browser too, with a `reason` field, and
+#'   `safeconduct_download_error` when the transfer failed.
 #' @examples
 #' \dontrun{
 #' url <- paste0("https://www12.statcan.gc.ca/census-recensement/2021/",
@@ -194,31 +169,23 @@ sc_escorted_download <- function(chrome, url, destfile, quiet = FALSE,
   })
 }
 
-#' Read a resource into memory, through a browser if the server insists
+#' Read a page or a feed into memory, through a browser if the server insists
 #'
-#' The counterpart of [fetch()] for a page or a feed rather than a file: the
-#' response is returned instead of written to disk, in the shape of
-#' [curl::curl_fetch_memory()]'s. The same path is taken: curl where a plain
-#' request is served, curl carrying the browser's clearance where the server
-#' accepts that, and the browser itself where it does not, in which case the
-#' resource is read by the page the browser holds on the host.
-#'
-#' Without a `session`, a browser is opened and closed per call. For a feed
-#' that is read every few minutes, open a [browser_session()] once and pass
-#' it: the resource is then read in that browser, and if the server asks the
-#' browser for a check again meanwhile, the check is passed and the read
-#' repeated.
+#' [fetch()] for a page or a feed: the response is returned rather than
+#' written to disk, shaped like [curl::curl_fetch_memory()]'s, by the same
+#' route; where only the browser is served, the page the browser holds on
+#' the host reads it. For a feed read every few minutes, pass a
+#' [browser_session()] instead of opening a browser per call; a check the
+#' host asks for again meanwhile is passed and the read repeated.
 #'
 #' @inheritParams fetch
-#' @param session A browser session from [browser_session()] on the
-#'   resource's host. When given, the resource is read in that browser
-#'   without any probing.
+#' @param session A [browser_session()] on the host. The page is then read in
+#'   that browser without probing.
 #' @param timeout Seconds a read in the browser may take.
-#' @return A list: `url` (the final URL), `status_code`, `type` (the
+#' @return A list: `url` (after redirects), `status_code`, `type` (the
 #'   `content-type`, lower case), `headers` (a named list) and `content`
-#'   (raw). An HTTP error status is returned, not raised; `content` is then
-#'   the error page. Errors are classed as [fetch()]'s are. Parse it with
-#'   [page_text()], [page_json()] or [page_html()].
+#'   (raw). An HTTP error status is returned, not raised. Parse it with
+#'   [page_text()], [page_json()] or [page_html()]. Errors as [fetch()]'s.
 #' @examples
 #' \dontrun{
 #' r <- read_page("https://results.vancouver.ca/data/arearesults.json")
@@ -257,24 +224,19 @@ read_page <- function(url, session = NULL, quiet = FALSE, timeout = 120,
 
 #' Get a clearance for a host from a browser
 #'
-#' Opens a Chrome on the host, lets any browser check run, and returns what
-#' the browser then holds: its user-agent string and its cookies, which
-#' [clearance_handle()] puts on a curl request. Whether the server then serves curl is
-#' the server's call -- see [fetch()], which falls back to downloading in the
-#' browser when it does not. A host that blocks plain clients without ever
-#' checking a browser yields a clearance all the same, with whatever cookies
-#' it set; curl will usually not be served with it, since such a block is
-#' about the client rather than a cookie. Clearances are cached per host for
-#' the R session.
+#' Opens a Chrome on the host, lets any check run, and returns the browser's
+#' user-agent string and cookies, which [clearance_handle()] puts on a curl
+#' request. Whether the server then serves curl is the server's call: after
+#' a block page it usually does not, since the rule is about the client, and
+#' [fetch()] then downloads in the browser instead. Clearances are cached per
+#' host for the R session.
 #'
 #' @inheritParams fetch
-#' @param refresh Get a new clearance even when a cached one is at hand.
-#' @param wait Seconds to wait for the check to pass. The default is two
-#'   minutes when a window is shown, so that a person can click a box if one
-#'   appears, and thirty seconds headless.
-#' @return An object of class `safeconduct_clearance`: a list with `host`,
-#'   `useragent`, `cookie` (one `Cookie:` header value) and `time`. Errors as
-#'   [fetch()] does.
+#' @param refresh Get a new clearance even when one is cached.
+#' @param wait Seconds to wait for the check to pass: by default two minutes
+#'   with a window, so that a person can click, and thirty seconds headless.
+#' @return A `safeconduct_clearance`: a list with `host`, `useragent`,
+#'   `cookie` (one `Cookie:` header value) and `time`. Errors as [fetch()]'s.
 #' @examples
 #' \dontrun{
 #' cl <- clearance("https://www12.statcan.gc.ca/")
@@ -297,13 +259,12 @@ clearance <- function(url, refresh = FALSE, quiet = FALSE, wait = NULL,
 
 #' Download a file in a browser
 #'
-#' Opens a Chrome with a throwaway profile on the host, lets any browser
-#' check run, and downloads `url` in it; a window stays open until the
-#' transfer is done. [fetch()] does this only when it has to; this is for
-#' when the browser is wanted regardless.
+#' Opens a Chrome with a throwaway profile on the host, lets any check run,
+#' and downloads `url` in it, with no plain request first. [fetch()] does
+#' this only when it has to.
 #'
 #' @inheritParams fetch
-#' @return `destfile`, invisibly. Errors as [fetch()] does.
+#' @return `destfile`, invisibly. Errors as [fetch()]'s.
 #' @examples
 #' \dontrun{
 #' download_in_browser("https://example.org/large.zip", "large.zip")

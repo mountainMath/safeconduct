@@ -61,6 +61,8 @@ so rather than pretending otherwise.
 ## Test environments
 
 * local macOS (aarch64-apple-darwin23), R 4.6.1, `R CMD check --as-cran`
+* win-builder, R-release (R 4.6.2) and R-devel (2026-10-31 r90820)
+* R-hub, `linux` (R-devel on Ubuntu) and `ubuntu-release`
 
 ## R CMD check results
 

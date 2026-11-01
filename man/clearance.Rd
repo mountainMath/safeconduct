@@ -16,47 +16,37 @@ clearance(
 \arguments{
 \item{url}{The file's URL.}
 
-\item{refresh}{Get a new clearance even when a cached one is at hand.}
+\item{refresh}{Get a new clearance even when one is cached.}
 
 \item{quiet}{Suppress progress messages.}
 
-\item{wait}{Seconds to wait for the check to pass. The default is two
-minutes when a window is shown, so that a person can click a box if one
-appears, and thirty seconds headless.}
+\item{wait}{Seconds to wait for the check to pass: by default two minutes
+with a window, so that a person can click, and thirty seconds headless.}
 
-\item{headed}{How to run the browser, when one is needed: \code{"auto"}, the
-default, tries headless Chrome first and opens a window only when the
-headless run does not get through, so that a window is shown only when
-someone may need to click; \code{TRUE} opens a window at once and \code{FALSE}
-never does. Without a display \code{"auto"} is headless. A host may run a
-second check at the file's URL, after the one at its root; headless
-Chrome has passed such a check with nothing clicked, but only after
-about two minutes, where a window shows a box that gets it through as
-soon as it is clicked. \code{"auto"} waits those minutes and opens a window
-if they pass without; \code{TRUE} skips the wait.}
+\item{headed}{How to run the browser when one is needed. \code{"auto"}, the
+default, runs headless and opens a window only when the headless run
+ends on a check or a block and there is a display to show it on; \code{TRUE}
+opens a window at once; \code{FALSE} never does. A second check, at the
+file's URL, takes headless Chrome about two minutes to pass unclicked,
+where a window is through as soon as its box is clicked: \code{"auto"} waits
+those minutes before opening a window, \code{TRUE} skips the wait.}
 
-\item{useragent}{The user-agent string the browser announces. Headless
-Chrome's own calls it \code{HeadlessChrome}, and some hosts refuse it on that
-word alone. \code{TRUE}, the default, drops the word, so that the string says
-the Chrome version and platform it is and nothing it is not; \code{NULL}
-leaves Chrome's own string; a string is used as given. Set before the
-browser's first request, and what \code{\link[=clearance]{clearance()}} then reports.}
+\item{useragent}{The browser's user-agent string. \code{TRUE}, the default,
+drops the word \code{Headless} from Chrome's own string, which some hosts
+refuse on that word alone, and changes nothing else; \code{NULL} leaves
+Chrome's own; a string is used as given.}
 }
 \value{
-An object of class \code{safeconduct_clearance}: a list with \code{host},
-\code{useragent}, \code{cookie} (one \verb{Cookie:} header value) and \code{time}. Errors as
-\code{\link[=fetch]{fetch()}} does.
+A \code{safeconduct_clearance}: a list with \code{host}, \code{useragent},
+\code{cookie} (one \verb{Cookie:} header value) and \code{time}. Errors as \code{\link[=fetch]{fetch()}}'s.
 }
 \description{
-Opens a Chrome on the host, lets any browser check run, and returns what
-the browser then holds: its user-agent string and its cookies, which
-\code{\link[=clearance_handle]{clearance_handle()}} puts on a curl request. Whether the server then serves curl is
-the server's call -- see \code{\link[=fetch]{fetch()}}, which falls back to downloading in the
-browser when it does not. A host that blocks plain clients without ever
-checking a browser yields a clearance all the same, with whatever cookies
-it set; curl will usually not be served with it, since such a block is
-about the client rather than a cookie. Clearances are cached per host for
-the R session.
+Opens a Chrome on the host, lets any check run, and returns the browser's
+user-agent string and cookies, which \code{\link[=clearance_handle]{clearance_handle()}} puts on a curl
+request. Whether the server then serves curl is the server's call: after
+a block page it usually does not, since the rule is about the client, and
+\code{\link[=fetch]{fetch()}} then downloads in the browser instead. Clearances are cached per
+host for the R session.
 }
 \examples{
 \dontrun{
