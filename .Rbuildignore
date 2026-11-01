@@ -11,3 +11,4 @@
 ^Meta$
 ^vignettes\.orig$
 ^\.git-blame-ignore-revs$
+^cran-comments\.md$

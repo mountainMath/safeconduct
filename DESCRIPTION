@@ -1,6 +1,6 @@
 Package: safeconduct
 Type: Package
-Title: Fetch Files Through a Real Browser When a Plain Request Is Refused
+Title: Fetch Files Through a Real Browser When a Plain Request is Refused
 Version: 0.1.0
 Authors@R:
     person("Jens", "von Bergmann", email = "jens@mountainmath.ca",
@@ -16,6 +16,8 @@ Description: Some servers refuse any request that does not come from a web
 License: MIT + file LICENSE
 Encoding: UTF-8
 Language: en-CA
+SystemRequirements: Google Chrome or another Chromium-based browser
+    (<https://www.google.com/chrome/>).
 Depends:
     R (>= 4.1)
 Imports:

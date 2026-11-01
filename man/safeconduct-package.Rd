@@ -4,7 +4,7 @@
 \name{safeconduct-package}
 \alias{safeconduct}
 \alias{safeconduct-package}
-\title{safeconduct: Fetch Files Through a Real Browser When a Plain Request Is Refused}
+\title{safeconduct: Fetch Files Through a Real Browser When a Plain Request is Refused}
 \description{
 \if{html}{\figure{logo.png}{options: style='float: right' alt='logo' width='120'}}
 

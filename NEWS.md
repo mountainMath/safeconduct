@@ -1,68 +1,80 @@
 # safeconduct 0.1.0
 
-* A Cloudflare block page -- a `403` that says "Sorry, you have been blocked"
-  and carries no check -- is now recognized as a refusal a browser gets past.
-  `probe()` reports it as `blocked`, `is_block()` is the test, and `fetch()`
-  brings in a browser for it as it does for a check.
-* Whether the browser got through is read off the page the host answers it
-  with, not off the `cf_clearance` cookie. Hosts that block plain clients but
-  never check a browser hand out no such cookie and used to time out; they
-  now pass at once. A host that blocks the browser too is reported within a
-  second or two as `safeconduct_not_passed`, instead of after the timeout.
-* Headless Chrome goes first, and a window is opened only when the headless
-  run ends on a check or a block; `headed = TRUE` opens one at once, `FALSE`
-  never does.
-* `read_page()` reads a page or a feed into memory by the same route
-  `fetch()` takes, reading in the browser where only the browser is served.
-* `browser_session()` keeps a browser open on a host for `read_page()` and
-  `fetch()` to use through their `session` argument, for a feed read every few
-  minutes. A check the host asks for again meanwhile is passed and the read
-  repeated.
-* `useragent`, an argument of every function that may open a browser, sets
-  the user-agent string the browser announces. Headless Chrome's own string
-  says `HeadlessChrome`, and some hosts refuse it on that word alone
-  (results.vancouver.ca is one) while serving the same browser once the word
-  is gone; with the word gone it has also passed a managed challenge with
-  nothing clicked. So the default, `TRUE`, drops the word and nothing else;
-  `NULL` leaves Chrome's own string, and a string is used as given. A
-  `browser_session()` keeps it for its life.
-* A session whose browser has gone away -- its window closed, or Chrome
-  crashed -- opens another at the next read or download, the way it was
-  opened before, and says so; it used to fail with "Could not read '...' in
-  the browser." and nothing more. A read or download in a browser that goes
-  away is now reported as that, and the error carries `reason = "gone"`.
-* `handle()` is now `clearance_handle()`, so that its name says what it carries
-  and does not read as curl's own.
-* `download_in_browser()` no longer waits for a clearance cookie before
-  starting the transfer, and a check at the file's URL is let run.
-* `headed` is an argument of every function that may open a browser --
-  `"auto"` to try headless first, `TRUE` for a window, `FALSE` for headless --
-  so that one call can take a window and the next not. There is no option
-  for it: the default adapts to the machine, and a `browser_session()` keeps
-  the choice made for it.
-* At the console, in an interactive session, once a host has been found to
-  need a window or the browser for the transfer, a tip says how to skip the
-  finding out next time: `headed = TRUE`, or a `browser_session()`. Tips come
+First release.
+
+## Why this package exists
+
+On October 2, 2026 Statistics Canada moved parts of its website behind a
+Cloudflare browser check, among them the census geography and correspondence
+files on www12.statcan.gc.ca. A plain HTTP request from R, whether through
+`download.file()`, `curl` or anything built on them, has been answered with a
+`403` check page instead of the file ever since, so those files became
+unreachable from R by the usual means. That broke functionality in the
+cancensus package, which downloads such files on its users' behalf, and it
+broke every script that fetched them directly.
+
+safeconduct restores that access as a drop-in replacement for the download:
+where a script called `download.file(url, destfile)`, it calls
+`safeconduct::fetch(url, destfile)`, and a package does the same inside its
+own download helper. Where the server serves the file to a plain request, that
+is what happens and no browser is involved. Where it answers with a browser
+check or a block page, a real Chrome with a throwaway profile is opened on the
+host, the check runs, and the file is fetched: through `curl` carrying the
+clearance the browser was given where the server accepts that, and in the
+browser itself where it does not. The price is a dependency on an installed
+Chrome or Chromium, and, when a check insists on a click, a window that waits
+for the person at the screen to click it. Nothing is simulated and nothing is
+clicked on anyone's behalf, so a check that wants a click cannot be passed
+where no one is present, say in a container or on a build server.
+
+## What is in it
+
+* `fetch(url, destfile)` downloads a file, bringing in a browser only when a
+  plain request is refused in a way a browser gets past. A clearance that
+  `curl` can use is kept for the rest of the R session, so later files from
+  the same host need no browser. A file downloaded in the browser lands under
+  `tempdir()` and is moved to `destfile` when complete; nothing is written
+  next to the destination meanwhile.
+* `read_page(url)` is `fetch()` for a page or a feed: the response comes back
+  in memory, shaped like `curl::curl_fetch_memory()`'s, by the same route,
+  read in the browser where only the browser is served.
+* `page_text()`, `page_json()` and `page_html()` parse a `read_page()`
+  response, taking the charset from its headers and raising a non-2xx status
+  as a classed `safeconduct_http_error`. Each also takes a URL, so
+  `page_html(url)` stands in for `rvest::read_html(url)`.
+* `browser_session(url)` keeps one browser open on a host for repeated
+  `read_page()` and `fetch()` calls through their `session` argument. A check
+  the host asks for again meanwhile is passed and the read repeated; a browser
+  that has gone away, its window closed, is reopened at the next call.
+* `probe(url)` says what a server serves at a URL and whether a browser is
+  needed; `is_challenge(headers)` recognizes a Cloudflare browser check by its
+  `cf-mitigated: challenge` header, and `is_block(status, headers, body)` the
+  "Sorry, you have been blocked" page that carries no check.
+* `clearance(url)` returns the user-agent string and cookies a browser was
+  given on a host, and `clearance_handle(clearance)` puts them on a `curl`
+  handle, for requests the package does not make itself.
+* `browser_available()` says whether a browser can be opened on this machine,
+  and why not if not. `download_in_browser()` is the browser transfer on its
+  own.
+* `headed`, an argument of every function that may open a browser, is
+  `"auto"` by default: headless Chrome goes first, and a window is opened only
+  when the headless run ends on a check or a block and there is a display to
+  show it on. `TRUE` opens a window at once, `FALSE` never does.
+* `useragent`, likewise an argument of every such function, is `TRUE` by
+  default: the word `Headless` is dropped from Chrome's user-agent string and
+  nothing else, because some hosts refuse headless Chrome on that word alone
+  while serving the same browser once it is gone. `NULL` leaves Chrome's own
+  string, and a string is used as given.
+* Errors are classed under `safeconduct_error`: `safeconduct_unavailable` when
+  no browser can be opened here, `safeconduct_not_passed` when a check was not
+  passed in time or the server blocks the browser too, and
+  `safeconduct_download_error` when the transfer failed. A calling package can
+  catch these and turn them into instructions to download by hand.
+  `options(safeconduct.browser = FALSE)` never opens a browser.
+* At the console, once a host has been found to need a window or the browser
+  for the transfer, a tip says how to skip the finding out next time. Tips come
   once per host and R session, and not for calls made from another package.
-
-# safeconduct 0.0.1
-
 * A getting-started vignette, `vignette("safeconduct")`, walks through a
   Statistics Canada file behind a browser check and a Vancouver election file
   behind a block: what a plain request gets, what `probe()` says, and what
   `fetch()` does.
-* A check at the file's URL, after the one at the host's root, is now
-  announced with what to expect: headless Chrome passes it without a click
-  but may take two minutes, and a tip says `headed = TRUE` opens a window at
-  once, where the check's box gets it through when clicked. Should headless
-  Chrome not pass within its wait, `headed = "auto"` opens a window and
-  downloads there, as it already did for the check at the root; a session
-  opened in auto mode moves to a window the same way. The check used to be
-  given up as "no data arrived for two minutes".
-* A file downloaded in the browser lands under `tempdir()` and is moved to
-  `destfile` when complete, instead of landing next to `destfile` under a
-  temporary name.
-* First version. `fetch()` downloads a file, opening a Chrome window to pass a
-  Cloudflare browser check when the server asks for one; `clearance()`,
-  `handle()`, `probe()`, `is_challenge()`, `browser_available()` and
-  `download_in_browser()` expose the pieces.
