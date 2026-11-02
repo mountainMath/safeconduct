@@ -10,12 +10,12 @@ files on www12.statcan.gc.ca. A plain HTTP request from R, whether through
 `download.file()`, `curl` or anything built on them, has been answered with a
 `403` check page instead of the file ever since, so those files became
 unreachable from R by the usual means. That broke functionality in the
-cancensus package, which downloads such files on its users' behalf, and it
+**cancensus** package, which downloads such files on its users' behalf, and it
 broke every script that fetched them directly.
 
 Statistics Canada is not alone. The City of Vancouver's Open Data portal
 has moved its large file downloads behind a Cloudflare check as well. The
-VancouvR package is itself unaffected, since the API it talks to and the
+**VancouvR** package is itself unaffected, since the API it talks to and the
 download links it serves work as before and nothing in the package starts a
 download, but a user who follows one of those links programmatically fails
 unless the download goes through safeconduct. As more public data moves
