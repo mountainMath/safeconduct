@@ -19,3 +19,6 @@ vignettes.orig/*_files/
 # What testthat leaves behind when a test fails
 tests/testthat/_problems/
 tests/testthat/testthat-problems.rds
+
+# Working notes, not part of the package
+notes/
