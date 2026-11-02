@@ -116,6 +116,14 @@ read_result <- function(status = 200, body = '{"a":1}',
        headers = headers, body = jsonlite::base64_enc(charToRaw(body)))
 }
 
+# What the read script returns for a body too large to carry in one reply:
+# the size instead of the body.
+read_too_large <- function(size = 40L * 1024L * 1024L, status = 200,
+                           headers = list(`content-type` = "application/octet-stream")) {
+  list(ok = TRUE, status = status, url = "https://example.org/feed.json",
+       headers = headers, tooLarge = TRUE, size = size)
+}
+
 fake_chrome <- function(session = fake_session(), headed = TRUE,
                         mode = if (headed) "headed" else "auto") {
   closed <- FALSE

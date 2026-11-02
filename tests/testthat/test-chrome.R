@@ -345,6 +345,15 @@ test_that("a resource is read in the browser", {
                "no answer within 7 seconds", class = "safeconduct_download_error")
 })
 
+test_that("a body too large to carry is refused fast, naming fetch()", {
+  s <- fake_session(read = read_too_large(size = 40L * 1024L * 1024L))
+  e <- expect_error(sc_browser_read(s, "https://example.org/feed.json"),
+                    "too large to read", class = "safeconduct_download_error")
+  expect_identical(e$reason, "too_large")
+  expect_match(conditionMessage(e), "40 MB")
+  expect_match(conditionMessage(e), "fetch\\(\\)")
+})
+
 test_that("a read in a browser that has gone away says so", {
   gone <- function(expr) stop("Session and underlying target have been closed.")
   s <- fake_session(read = gone)

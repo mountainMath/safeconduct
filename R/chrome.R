@@ -608,22 +608,35 @@ sc_browser_download <- function(session, url, destfile, quiet = FALSE,
 # every response header is readable, including `cf-mitigated` on a check.
 # This is for pages and feeds; a protocol message is not the place for a
 # large file, which is what `sc_browser_download()` is for.
-sc_read_script <- "(async function(url) {
+# The body rides back inside one `Runtime.evaluate` reply as base64. A reply
+# much past 32 MB of base64 never arrives whole -- Chrome, the websocket or
+# chromote, it does not matter which -- and the call hangs, its `timeout_`
+# never firing (www12.statcan.gc.ca, a 27.8 MB file, November 2026). So the
+# script measures the body before encoding it and returns its size instead
+# when it is over the limit, and `sc_browser_read()` fails fast and names
+# `fetch()`, which carries any size through the download events. The limit
+# is well under the size where the hang was seen.
+sc_read_limit <- function() 16L * 1024L * 1024L
+
+sc_read_script <- "(async function(url, limit) {
   try {
     var r = await fetch(url, {cache: 'no-store', credentials: 'include',
                               redirect: 'follow'});
     var buf = new Uint8Array(await r.arrayBuffer());
+    var headers = {};
+    r.headers.forEach(function(v, k) { headers[k] = v; });
+    if (buf.length > limit)
+      return {ok: true, status: r.status, url: r.url, headers: headers,
+              tooLarge: true, size: buf.length};
     var bin = '';
     for (var i = 0; i < buf.length; i += 32768)
       bin += String.fromCharCode.apply(null, buf.subarray(i, i + 32768));
-    var headers = {};
-    r.headers.forEach(function(v, k) { headers[k] = v; });
     return {ok: true, status: r.status, url: r.url, headers: headers,
             body: btoa(bin)};
   } catch (e) {
     return {ok: false, error: String(e)};
   }
-})(%s)"
+})(%s, %s)"
 
 # Returns a list like `curl::curl_fetch_memory()`'s: `url`, `status_code`,
 # `type`, `headers` (a named list) and `content` (raw). Raises
@@ -632,13 +645,23 @@ sc_read_script <- "(async function(url) {
 # not come back in time, or the browser is no longer there (`reason`
 # `"gone"`; a session opens another and reads again).
 sc_browser_read <- function(session, url, timeout = 120) {
-  js <- sprintf(sc_read_script, encodeString(url, quote = '"'))
+  limit <- sc_read_limit()
+  js <- sprintf(sc_read_script, encodeString(url, quote = '"'),
+                format(limit, scientific = FALSE))
   failed <- NULL
   res <- tryCatch(
     session$Runtime$evaluate(js, awaitPromise = TRUE, returnByValue = TRUE,
                              timeout_ = timeout * 1000),
     error = function(e) { failed <<- conditionMessage(e); NULL })
   v <- res$result$value
+  if (isTRUE(v$tooLarge)) {
+    stop(sc_error("safeconduct_download_error", paste0(
+      "Could not read '", url, "' in the browser: it is ",
+      sprintf("%.0f MB", (v$size %||% 0) / 1024^2), ", too large to read in a ",
+      "browser (the limit is ", sprintf("%.0f MB", limit / 1024^2),
+      "); download it to a file with `fetch()` instead."),
+      reason = "too_large"))
+  }
   if (is.null(v) || !isTRUE(v$ok)) {
     gone <- !isTRUE(tryCatch(session$is_active(), error = function(e) FALSE))
     why <- if (gone) sc_gone_message()
