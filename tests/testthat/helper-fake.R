@@ -117,11 +117,12 @@ read_result <- function(status = 200, body = '{"a":1}',
 }
 
 # What the read script returns for a body too large to carry in one reply:
-# the size instead of the body.
-read_too_large <- function(size = 40L * 1024L * 1024L, status = 200,
-                           headers = list(`content-type` = "application/octet-stream")) {
+# it hands the bytes to Chrome as a download and reports the size, so the
+# read collects the file rather than a base64 body.
+read_spilled <- function(size = 40L * 1024L * 1024L, status = 200,
+                         headers = list(`content-type` = "application/octet-stream")) {
   list(ok = TRUE, status = status, url = "https://example.org/feed.json",
-       headers = headers, tooLarge = TRUE, size = size)
+       headers = headers, spilled = TRUE, size = size)
 }
 
 fake_chrome <- function(session = fake_session(), headed = TRUE,

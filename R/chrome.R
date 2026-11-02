@@ -606,16 +606,24 @@ sc_browser_download <- function(session, url, destfile, quiet = FALSE,
 # URL and hands back status, headers and the body. The body comes as base64
 # so that binary resources survive the trip; the request is same-origin, so
 # every response header is readable, including `cf-mitigated` on a check.
-# This is for pages and feeds; a protocol message is not the place for a
-# large file, which is what `sc_browser_download()` is for.
-# The body rides back inside one `Runtime.evaluate` reply as base64. A reply
-# much past 32 MB of base64 never arrives whole -- Chrome, the websocket or
-# chromote, it does not matter which -- and the call hangs, its `timeout_`
-# never firing (www12.statcan.gc.ca, a 27.8 MB file, November 2026). So the
-# script measures the body before encoding it and returns its size instead
-# when it is over the limit, and `sc_browser_read()` fails fast and names
-# `fetch()`, which carries any size through the download events. The limit
-# is well under the size where the hang was seen.
+# This is for pages and feeds read into memory; `fetch()` and
+# `sc_browser_download()` are the way to put a resource on disk.
+#
+# A small body rides back inside one `Runtime.evaluate` reply as base64. A
+# reply much past 32 MB of base64 never arrives whole -- Chrome, the
+# websocket or chromote, it does not matter which -- and the call hangs, its
+# `timeout_` never firing (www12.statcan.gc.ca, a 27.8 MB file, November
+# 2026; the why of the stuck timeout is in notes/NOTE-www12-files-blob-download.md).
+# So the script measures the body before encoding it: under the limit it
+# returns the base64 as before; over it, it wraps the bytes in a `Blob` and
+# clicks an `<a download>`, which `Browser.setDownloadBehavior allowAndName`
+# lands as a file while `Browser.downloadProgress` reports it, exactly as a
+# navigated download does. The reply is then small either way -- a body, or
+# a size and a note that one is on the way -- so nothing large crosses the
+# protocol and the read never hangs. `sc_browser_read()` reads the spilled
+# file back into the `content` it would otherwise have decoded, so its
+# return is the same shape whichever route the body took. The limit sits
+# well under the size where the hang was seen.
 sc_read_limit <- function() 16L * 1024L * 1024L
 
 sc_read_script <- "(async function(url, limit) {
@@ -625,9 +633,14 @@ sc_read_script <- "(async function(url, limit) {
     var buf = new Uint8Array(await r.arrayBuffer());
     var headers = {};
     r.headers.forEach(function(v, k) { headers[k] = v; });
-    if (buf.length > limit)
+    if (buf.length > limit) {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([buf]));
+      a.download = 'safeconduct.bin';
+      document.body.appendChild(a); a.click(); a.remove();
       return {ok: true, status: r.status, url: r.url, headers: headers,
-              tooLarge: true, size: buf.length};
+              spilled: true, size: buf.length};
+    }
     var bin = '';
     for (var i = 0; i < buf.length; i += 32768)
       bin += String.fromCharCode.apply(null, buf.subarray(i, i + 32768));
@@ -638,6 +651,39 @@ sc_read_script <- "(async function(url, limit) {
   }
 })(%s, %s)"
 
+# Wait for the download the read script started with its Blob click to
+# finish, and return the file Chrome wrote under `sc_download_dir()`. It is
+# the tail of `sc_browser_download()` without the navigation and the
+# document watching: the fetch has already answered 200, so there is no
+# check to pass here, only bytes to collect. `pr$ev` is the latest progress
+# event, written by the callback the caller registered before the script ran.
+sc_await_spill <- function(session, pr, timeout = 120) {
+  started <- sc_now()
+  last_bytes <- -1
+  last_change <- started
+  repeat {
+    Sys.sleep(0.25)
+    tryCatch(session$Browser$getVersion(), error = function(e) {
+      stop(sc_error("safeconduct_download_error",
+        paste0("the browser went away mid-read: ", sc_gone_message()),
+        reason = "gone"))
+    })
+    now <- sc_now()
+    ev <- pr$ev
+    state <- ev$state %||% "pending"
+    if (identical(state, "completed")) return(file.path(sc_download_dir(), ev$guid))
+    if (identical(state, "canceled"))
+      stop(sc_error("safeconduct_download_error", "the browser cancelled the read."))
+    received <- ev$receivedBytes %||% 0
+    if (received != last_bytes) { last_bytes <- received; last_change <- now }
+    if (sc_secs_since(last_change, now) > 120)
+      stop(sc_error("safeconduct_download_error", "no data arrived for two minutes."))
+    if (sc_secs_since(started, now) > timeout)
+      stop(sc_error("safeconduct_download_error",
+        paste0("the large body did not arrive within ", timeout, " seconds.")))
+  }
+}
+
 # Returns a list like `curl::curl_fetch_memory()`'s: `url`, `status_code`,
 # `type`, `headers` (a named list) and `content` (raw). Raises
 # `safeconduct_download_error` when the request could not be made at all:
@@ -646,6 +692,17 @@ sc_read_script <- "(async function(url, limit) {
 # `"gone"`; a session opens another and reads again).
 sc_browser_read <- function(session, url, timeout = 120) {
   limit <- sc_read_limit()
+  # Registered before the script runs: a large body is handed to Chrome as a
+  # download from inside the script, and its first progress event can arrive
+  # before the script's reply does.
+  invisible(session$Browser$setDownloadBehavior(
+    behavior = "allowAndName", downloadPath = sc_download_dir(),
+    eventsEnabled = TRUE))
+  pr <- new.env(parent = emptyenv())
+  pr$ev <- NULL
+  unregister <- session$Browser$downloadProgress(
+    callback_ = function(ev) pr$ev <- ev, wait_ = FALSE)
+  on.exit(try(unregister(), silent = TRUE), add = TRUE)
   js <- sprintf(sc_read_script, encodeString(url, quote = '"'),
                 format(limit, scientific = FALSE))
   failed <- NULL
@@ -654,14 +711,6 @@ sc_browser_read <- function(session, url, timeout = 120) {
                              timeout_ = timeout * 1000),
     error = function(e) { failed <<- conditionMessage(e); NULL })
   v <- res$result$value
-  if (isTRUE(v$tooLarge)) {
-    stop(sc_error("safeconduct_download_error", paste0(
-      "Could not read '", url, "' in the browser: it is ",
-      sprintf("%.0f MB", (v$size %||% 0) / 1024^2), ", too large to read in a ",
-      "browser (the limit is ", sprintf("%.0f MB", limit / 1024^2),
-      "); download it to a file with `fetch()` instead."),
-      reason = "too_large"))
-  }
   if (is.null(v) || !isTRUE(v$ok)) {
     gone <- !isTRUE(tryCatch(session$is_active(), error = function(e) FALSE))
     why <- if (gone) sc_gone_message()
@@ -673,7 +722,19 @@ sc_browser_read <- function(session, url, timeout = 120) {
       reason = if (gone) "gone"))
   }
   h <- sc_parse_headers(as.list(v$headers %||% list()))
+  content <- if (isTRUE(v$spilled)) {
+    from <- sc_await_spill(session, pr, timeout)
+    if (!file.exists(from) || file.info(from)$size == 0)
+      stop(sc_error("safeconduct_download_error", paste0(
+        "Could not read '", url, "' in the browser: the large body (",
+        sprintf("%.0f MB", (v$size %||% 0) / 1024^2),
+        ") was reported complete but there is no file.")))
+    on.exit(unlink(from), add = TRUE)
+    readBin(from, "raw", n = file.info(from)$size)
+  } else {
+    jsonlite::base64_dec(v$body %||% "")
+  }
   list(url = v$url %||% url, status_code = as.integer(v$status),
        type = tolower(h[["content-type"]] %||% NA_character_),
-       headers = h, content = jsonlite::base64_dec(v$body %||% ""))
+       headers = h, content = content)
 }

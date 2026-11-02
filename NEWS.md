@@ -1,10 +1,11 @@
 # safeconduct 0.1.0.9000 (development version)
 
-* `read_page()` now fails fast when a resource is larger than 16 MB, naming
-  `fetch()` as the way to download it, instead of hanging: a body much past
-  32 MB never came back whole in the single protocol reply the browser read
-  rides in, and the read's own timeout did not fire (seen on a 27.8 MB file
-  from www12.statcan.gc.ca).
+* `read_page()` no longer hangs on a large resource. A body much past 32 MB
+  never came back whole in the single protocol reply the browser read rode
+  in, and the read's own timeout did not fire (seen on a 27.8 MB file from
+  www12.statcan.gc.ca). A body over 16 MB is now handed to the browser as a
+  download and collected as a file, so nothing large crosses the protocol;
+  the content it returns is the same either way.
 
 # safeconduct 0.1.0
 
