@@ -274,6 +274,21 @@ sc_focus <- function(session, script) {
   invisible(NULL)
 }
 
+# Bring the window to the front. A window Chrome has just opened is in front,
+# because the system activates a newly launched application; a window a
+# session keeps is wherever the person left it, mostly behind the console,
+# and a check that turns up in it there goes unseen, and so unclicked, until
+# the wait runs out (www12.statcan.gc.ca, November 2026, where a session's
+# second file timed out that way). `Page.bringToFront` raises and focuses the
+# window across applications, verified on macOS; in headless Chrome it does
+# nothing. It is called once per check, when the check's document first
+# shows, so that a window the person has moved aside on purpose is not
+# pulled back every tick.
+sc_raise <- function(session) {
+  try(session$Page$bringToFront(), silent = TRUE)
+  invisible(NULL)
+}
+
 # Watching what the main frame is served.
 #
 # Events only reach R while a protocol call is in flight, so the loops below
@@ -356,11 +371,16 @@ sc_wait_pass <- function(session, url, timeout) {
   focus <- sc_focus_script()
   deadline <- Sys.time() + timeout
   pending_since <- NULL
+  raised <- FALSE
   repeat {
     Sys.sleep(0.5)
     sc_pump(session)
     sc_focus(session, focus)
     kind <- sc_document_kind(session, w)
+    if (identical(kind, "challenge") && !raised) {
+      sc_raise(session)
+      raised <- TRUE
+    }
     if (identical(kind, "page")) return(sc_snapshot_clearance(session, url))
     if (identical(kind, "pending")) {
       pending_since <- pending_since %||% sc_now()
@@ -527,6 +547,7 @@ sc_browser_download <- function(session, url, destfile, quiet = FALSE,
         check_since <- check_since %||% now
         last_change <- now
         if (!told) {
+          if (headed) sc_raise(session)
           sc_message(quiet, sc_check_note(headed, fallback))
           if (!headed) {
             sc_hint(hints, paste0("headed:", sc_url_host(url)),

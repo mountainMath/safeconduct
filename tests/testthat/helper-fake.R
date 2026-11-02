@@ -56,7 +56,11 @@ fake_session <- function(events = list(), cookies = list(), payload = "data",
       session$calls <- c(session$calls, paste0("navigate:", url))
       list()
     },
-    getFrameTree = function() list(frameTree = list(frame = list(id = "main"))))
+    getFrameTree = function() list(frameTree = list(frame = list(id = "main"))),
+    bringToFront = function() {
+      session$calls <- c(session$calls, "front")
+      list()
+    })
   session$Network <- list(
     enable = function() list(),
     setUserAgentOverride = function(userAgent) {

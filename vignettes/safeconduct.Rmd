@@ -253,8 +253,9 @@ of a window on hosts like these, or a string to use as given.
 only when the headless run ends on a check or a block it does not get past,
 or on a check at the file's URL it has not passed in two minutes, and only
 when there is a display to show it on. The window is a plain Chrome; when
-the check shows a "Verify you are human" box, the window stays on screen for
-up to two minutes for the person at the screen to click it. `headed = TRUE`
+the check shows a "Verify you are human" box, the window is brought to the
+front and stays there for up to two minutes for the person at the screen to
+click it. `headed = TRUE`
 opens a window at once and `headed = FALSE` never does. The argument is on
 every function that may open a browser.
 

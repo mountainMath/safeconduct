@@ -5,7 +5,9 @@ ask you to disregard: shortly after confirming it I found that the waits in
 the browser download loop compared a `difftime` with a bare number of
 seconds, so that past a minute they were read in minutes and the timeouts,
 and with them the window fallback, never fired. This version fixes that and
-adds a regression test. Nothing else has changed.
+adds a regression test. It also brings a window a session keeps to the front
+when a check shows in it, since a check in a window behind the console goes
+unseen. Nothing else has changed.
 
 ### What it does, and why
 

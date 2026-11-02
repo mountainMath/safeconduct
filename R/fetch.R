@@ -33,7 +33,8 @@ sc_clearance_cache <- new.env(parent = emptyenv())
 #' the host need no browser.
 #'
 #' Nothing is simulated. A check that shows a "Verify you are human" box
-#' waits in a window, for up to two minutes, for a person to click it. A
+#' waits in a window, for up to two minutes, for a person to click it. The
+#' window is brought to the front when a check shows in it. A
 #' file downloaded in the browser lands under [tempdir()] and is moved to
 #' `destfile` when complete.
 #'

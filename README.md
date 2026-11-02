@@ -26,7 +26,8 @@ file downloaded in the browser lands under `tempdir()` and is moved into
 place when complete.
 
 Nothing is simulated. When the check shows a "Verify you are human" box, the
-window waits up to two minutes for the person at the screen to click it, and
+window is brought to the front and waits up to two minutes for the person at
+the screen to click it, and
 the browser is not disguised beyond dropping the word `Headless` from its
 user-agent string, which some hosts refuse on that word alone. A download
 that must run unattended cannot rely on this package where such a box is

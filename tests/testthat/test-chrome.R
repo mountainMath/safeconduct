@@ -255,6 +255,34 @@ test_that("the waits in the download loop are read in seconds past a minute", {
                             as.POSIXct("2026-11-01", tz = "UTC")) > 150)
 })
 
+test_that("a check brings the window to the front, once", {
+  dir <- withr::local_tempdir()
+  dest <- file.path(dir, "file.zip")
+  # A check at the file's URL in a window: raised once, when the check shows.
+  s <- fake_session(events = list(doc_event(403, challenge_headers),
+                                  doc_event(403, challenge_headers),
+                                  dl_event("completed", "g7", 10, 10)))
+  sc_browser_download(s, "https://example.org/file.zip", dest, quiet = TRUE,
+                      headed = TRUE)
+  expect_identical(sum(s$calls == "front"), 1L)
+  # Headless Chrome has no window to raise.
+  s <- fake_session(events = list(doc_event(403, challenge_headers),
+                                  dl_event("completed", "g8", 10, 10)))
+  sc_browser_download(s, "https://example.org/file.zip", dest, quiet = TRUE,
+                      headed = FALSE)
+  expect_false("front" %in% s$calls)
+  # The check at the root as well, for a session's window asked again.
+  s <- fake_session(events = list(doc_event(403, challenge_headers),
+                                  doc_event(403, challenge_headers),
+                                  doc_event(200)), cookies = cookies)
+  sc_wait_pass(s, "https://example.org/", timeout = 10)
+  expect_identical(sum(s$calls == "front"), 1L)
+  # No check, nothing raised.
+  s <- fake_session(events = list(doc_event(200)), cookies = cookies)
+  sc_wait_pass(s, "https://example.org/", timeout = 5)
+  expect_false("front" %in% s$calls)
+})
+
 test_that("a block page at the file's URL ends the download at once", {
   dir <- withr::local_tempdir()
   dest <- file.path(dir, "file.zip")
