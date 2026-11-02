@@ -1,6 +1,11 @@
 ## About this submission
 
-This is a new package.
+This is a new package. It replaces the submission of November 1, 2026, which I
+ask you to disregard: shortly after confirming it I found that the waits in
+the browser download loop compared a `difftime` with a bare number of
+seconds, so that past a minute they were read in minutes and the timeouts,
+and with them the window fallback, never fired. This version fixes that and
+adds a regression test. Nothing else has changed.
 
 ### What it does, and why
 

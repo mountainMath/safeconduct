@@ -79,8 +79,10 @@ Cross-cutting pieces in `R/safeconduct-package.R`:
 ## Conventions
 
 - Internal functions are prefixed `sc_`. Small indirections such as `sc_probe()`,
-  `sc_interactive()`, `sc_display_available()`, `sc_check_wait()` and `sc_page_grace()` exist so
-  tests can replace them with `testthat::local_mocked_bindings()`.
+  `sc_interactive()`, `sc_display_available()`, `sc_check_wait()`, `sc_page_grace()` and `sc_now()`
+  exist so tests can replace them with `testthat::local_mocked_bindings()`. Elapsed time is always
+  compared in seconds through `sc_secs_since()`, never as a bare `difftime`, whose unit changes
+  with the size of the gap.
 - Tests never touch the network, and only one (the connection-count test at the end of
   `test-chrome.R`, skipped without a browser and on CRAN) opens Chrome: `tests/testthat/helper-fake.R` provides
   `fake_session()` (a scripted stand-in for the chromote CDP surface: download and document

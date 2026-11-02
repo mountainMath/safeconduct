@@ -363,8 +363,8 @@ sc_wait_pass <- function(session, url, timeout) {
     kind <- sc_document_kind(session, w)
     if (identical(kind, "page")) return(sc_snapshot_clearance(session, url))
     if (identical(kind, "pending")) {
-      pending_since <- pending_since %||% Sys.time()
-      if (Sys.time() - pending_since > 3) kind <- "block"
+      pending_since <- pending_since %||% sc_now()
+      if (sc_secs_since(pending_since) > 3) kind <- "block"
     } else {
       pending_since <- NULL
     }
@@ -431,6 +431,20 @@ sc_page_grace <- function() 15
 # (www12.statcan.gc.ca, October 2026), so it is given a little more than that.
 sc_check_wait <- function(headed) if (headed) 120 else 150
 
+# The clock the waiting loops read, and the seconds since a moment on it. The
+# subtraction of two times is a `difftime` whose unit R picks for the size of
+# the gap: seconds under a minute, then minutes, then hours. Compared with a
+# bare number, a gap of 200 seconds reads as 3.3 and a limit of 150 seconds
+# is never reached, so every limit in a loop that had passed the one-minute
+# mark was in effect read in minutes, and the check wait and the download
+# timeout never fired (found November 2026 with a check at the file's URL
+# that headless Chrome sat on for twelve minutes with no window opened).
+# Hence the unit is always named. Tests replace `sc_now()` to move time.
+sc_now <- function() Sys.time()
+sc_secs_since <- function(then, now = sc_now()) {
+  as.numeric(difftime(now, then, units = "secs"))
+}
+
 # What is said when a check turns up at the file's URL. `fallback` says
 # whether a window follows should headless Chrome not get through in time.
 sc_check_note <- function(headed, fallback = FALSE) {
@@ -475,7 +489,7 @@ sc_browser_download <- function(session, url, destfile, quiet = FALSE,
   on.exit(w$stop(), add = TRUE)
   invisible(session$Page$navigate(url, wait_ = FALSE))
 
-  started <- Sys.time()
+  started <- sc_now()
   last_bytes <- -1
   last_change <- started
   last_report <- started
@@ -498,7 +512,7 @@ sc_browser_download <- function(session, url, destfile, quiet = FALSE,
     Sys.sleep(0.5)
     tryCatch(session$Browser$getVersion(),
              error = function(e) fail(sc_gone_message(), reason = "gone"))
-    now <- Sys.time()
+    now <- sc_now()
     state <- progress$state %||% "pending"
     if (identical(state, "completed")) break
     if (identical(state, "canceled")) fail("the browser cancelled it.")
@@ -521,14 +535,14 @@ sc_browser_download <- function(session, url, destfile, quiet = FALSE,
           }
           told <- TRUE
         }
-        if (now - check_since > sc_check_wait(headed)) {
+        if (sc_secs_since(check_since, now) > sc_check_wait(headed)) {
           fail(paste0("the browser check at the file's URL was not passed ",
                       "within ", sc_check_wait(headed), " seconds."),
                "safeconduct_not_passed", reason = "timeout")
         }
       } else if (identical(kind, "page") && grepl("html", w$doc$type %||% "")) {
         page_since <- page_since %||% now
-        if (now - page_since > sc_page_grace()) {
+        if (sc_secs_since(page_since, now) > sc_page_grace()) {
           fail(paste0("the server answered with a page (status ",
                       w$doc$status, "), not the file."))
         }
@@ -536,10 +550,10 @@ sc_browser_download <- function(session, url, destfile, quiet = FALSE,
     }
     received <- progress$receivedBytes %||% 0
     if (received != last_bytes) { last_bytes <- received; last_change <- now }
-    if (now - last_change > 120) fail("no data arrived for two minutes.")
-    if (now - started > timeout) fail(paste0("it did not finish in ", timeout,
+    if (sc_secs_since(last_change, now) > 120) fail("no data arrived for two minutes.")
+    if (sc_secs_since(started, now) > timeout) fail(paste0("it did not finish in ", timeout,
                                              " seconds."))
-    if (!quiet && now - last_report > 10 && received > 0) {
+    if (!quiet && sc_secs_since(last_report, now) > 10 && received > 0) {
       total <- progress$totalBytes %||% 0
       sc_message(quiet, sprintf("  %.0f MB%s", received / 1e6,
         if (total > 0) sprintf(" of %.0f", total / 1e6) else ""))

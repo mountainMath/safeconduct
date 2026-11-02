@@ -216,6 +216,45 @@ test_that("a check at the file's URL still running after its wait is not passed"
   expect_no_match(msgs, "Tip:")
 })
 
+test_that("the waits in the download loop are read in seconds past a minute", {
+  # `Sys.time() - then` is a difftime in whatever unit fits the gap, minutes
+  # past the first one, and compared with a bare number of seconds it let
+  # every limit here slide once a loop had run a minute. The clock is moved
+  # by hand so that the real limits are crossed in a few ticks, and a tick
+  # count stops a loop that would otherwise spin for hours.
+  ticking_clock <- function(step) {
+    t0 <- as.POSIXct("2026-11-01 12:00:00", tz = "UTC")
+    n <- 0
+    function() {
+      n <<- n + 1
+      if (n > 30) stop("the loop did not stop in time")
+      t0 + n * step
+    }
+  }
+  dir <- withr::local_tempdir()
+  dest <- file.path(dir, "file.zip")
+  # A check at the file's URL, with the real 150-second headless wait and
+  # the clock moving 100 seconds a tick: timed out on the third tick.
+  local_mocked_bindings(sc_now = ticking_clock(100))
+  s <- fake_session(events = rep(list(doc_event(403, challenge_headers)), 30))
+  err <- tryCatch(
+    sc_browser_download(s, "https://example.org/file.zip", dest, quiet = TRUE,
+                        headed = FALSE),
+    error = function(e) e)
+  expect_s3_class(err, "safeconduct_not_passed")
+  expect_identical(err$reason, "timeout")
+  # A transfer still going past the default hour, with bytes arriving every
+  # tick so that only the overall timeout can end it.
+  local_mocked_bindings(sc_now = ticking_clock(1000))
+  s <- fake_session(events = lapply(1:30, function(i) dl_event("inProgress", "g9", i, 100)))
+  expect_error(sc_browser_download(s, "https://example.org/file.zip", dest,
+                                   quiet = TRUE),
+               "did not finish in 3600 seconds", class = "safeconduct_download_error")
+  expect_true("cancel:g9" %in% s$calls)
+  expect_true(sc_secs_since(as.POSIXct("2026-11-01", tz = "UTC") - 200,
+                            as.POSIXct("2026-11-01", tz = "UTC")) > 150)
+})
+
 test_that("a block page at the file's URL ends the download at once", {
   dir <- withr::local_tempdir()
   dest <- file.path(dir, "file.zip")
