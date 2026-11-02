@@ -34,7 +34,9 @@ sc_clearance_cache <- new.env(parent = emptyenv())
 #'
 #' Nothing is simulated. A check that shows a "Verify you are human" box
 #' waits in a window, for up to two minutes, for a person to click it. The
-#' window is brought to the front when a check shows in it. A
+#' window is brought to the front when a check shows in it, and wants to be
+#' left there until it is through: a check run with the window behind
+#' something else is reissued on every click. A
 #' file downloaded in the browser lands under [tempdir()] and is moved to
 #' `destfile` when complete.
 #'
@@ -341,7 +343,8 @@ sc_open_browser <- function(url, quiet = FALSE, wait = NULL, what = NULL,
 
 sc_window_note <- function() {
   paste0("\n  Opening a Chrome window; this usually takes a few seconds.",
-         "\n  If it shows a \"Verify you are human\" box, click the box.")
+         "\n  If it shows a \"Verify you are human\" box, click the box and ",
+         "leave the window in front until it is through.")
 }
 
 # One launch and pass. Returns the browser, or the `safeconduct_not_passed`

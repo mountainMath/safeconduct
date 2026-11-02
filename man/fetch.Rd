@@ -60,7 +60,9 @@ the host need no browser.
 \details{
 Nothing is simulated. A check that shows a "Verify you are human" box
 waits in a window, for up to two minutes, for a person to click it. The
-window is brought to the front when a check shows in it. A
+window is brought to the front when a check shows in it, and wants to be
+left there until it is through: a check run with the window behind
+something else is reissued on every click. A
 file downloaded in the browser lands under \code{\link[=tempdir]{tempdir()}} and is moved to
 \code{destfile} when complete.
 }

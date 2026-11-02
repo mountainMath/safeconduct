@@ -284,6 +284,14 @@ sc_focus <- function(session, script) {
 # nothing. It is called once per check, when the check's document first
 # shows, so that a window the person has moved aside on purpose is not
 # pulled back every tick.
+#
+# Raising the window is not enough on its own: the check wants the page kept
+# in the foreground while it runs. A window that was in the background when
+# the challenge loaded loops even once raised and clicked, reissuing the
+# check on every click; the same file through a window left in front passes
+# in one click (www12.statcan.gc.ca on a fresh address, November 2026). So
+# the message asks the person to leave the window in front until it is
+# through, and the raise is there to make a buried check seen at all.
 sc_raise <- function(session) {
   try(session$Page$bringToFront(), silent = TRUE)
   invisible(NULL)
@@ -469,7 +477,8 @@ sc_secs_since <- function(then, now = sc_now()) {
 # whether a window follows should headless Chrome not get through in time.
 sc_check_note <- function(headed, fallback = FALSE) {
   paste0("  The server is asking for a browser check at the file's URL first; ",
-    if (headed) "if it shows a \"Verify you are human\" box, click the box."
+    if (headed) paste0("if it shows a \"Verify you are human\" box, click the box ",
+                       "and leave the window in front until the file is through.")
     else paste0("headless Chrome passes it without a click, but it may take ",
                 "two minutes.\n  If it has not passed by then, ",
                 if (fallback) "a window is opened." else "the download fails."))
