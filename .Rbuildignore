@@ -12,3 +12,5 @@
 ^vignettes\.orig$
 ^\.git-blame-ignore-revs$
 ^cran-comments\.md$
+^NOTE-supervisor-connections\.md$
+^NOTE-.*\.md$

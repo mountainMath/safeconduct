@@ -30,8 +30,9 @@
 #     nothing follows it; anything else is the host answering the browser.
 #     A host that blocks plain clients but never challenges a browser hands
 #     out no `cf_clearance`, so waiting for the cookie would wait for ever.
-#   * Chrome is launched directly, not through `chromote::Chrome$new()`, which
-#     always passes `--headless`. `--remote-debugging-port=0` makes Chrome pick
+#   * Chrome is launched directly, headless or not, rather than through
+#     chromote's launcher, which always passes `--headless` and supervises the
+#     process (see `sc_launch_chrome()`). `--remote-debugging-port=0` makes Chrome pick
 #     a free port and write it to `DevToolsActivePort` in the profile
 #     directory, which `chromote::ChromeRemote` then connects to. Nothing of
 #     the user's own Chrome profile is touched: the profile is a fresh temp
@@ -42,8 +43,7 @@
 #     taller than the window, so the check page's centred card sat below the
 #     fold whatever the window's size. The override is cleared right after
 #     the session is made, and the viewport is then the window's.
-#   * Headless Chrome is launched through chromote's own launcher. Its
-#     user-agent string says `HeadlessChrome`. The Vancouver hosts
+#   * Headless Chrome's user-agent string says `HeadlessChrome`. The Vancouver hosts
 #     (results.vancouver.ca, webtransfer.vancouver.ca) block headless Chrome
 #     on that word alone: the same browser with `Chrome/` in place of
 #     `HeadlessChrome/` is served, while curl is blocked whatever it says;
@@ -113,10 +113,12 @@ sc_window_args <- function() {
 
 # Chrome's `DevToolsActivePort` file: the port on the first line, written once
 # the DevTools server is listening.
-sc_devtools_port <- function(profile, timeout = 15) {
+sc_devtools_port <- function(profile, proc = NULL, timeout = 15) {
   path <- file.path(profile, "DevToolsActivePort")
   deadline <- Sys.time() + timeout
   while (Sys.time() < deadline) {
+    if (!is.null(proc) && !proc$is_alive())
+      stop("Chrome exited before starting its DevTools server.", call. = FALSE)
     if (file.exists(path)) {
       port <- suppressWarnings(as.integer(readLines(path, n = 1L, warn = FALSE)))
       if (length(port) == 1L && !is.na(port) && port > 0L) return(port)
@@ -130,26 +132,31 @@ sc_devtools_port <- function(profile, timeout = 15) {
 # Start Chrome and attach a DevTools session to it. Returns a list with the
 # `session` (a `chromote::ChromoteSession`), `headed` (whether a window is on
 # screen) and `close()`, which shuts everything down and removes the profile.
+#
+# Both modes launch Chrome here, not through chromote's launcher, and without
+# processx's supervisor (`supervise = FALSE`). The supervisor is a helper
+# process shared by the whole R session, which R talks to over two fifo
+# connections that stay open for the rest of the session once any supervised
+# process has been started; chromote's launcher starts one. Those fifos sat
+# in `showConnections()` after every fetch, and `R CMD check` fails an
+# example that leaves a connection open, so a package whose examples called
+# this one could not pass its check. What the supervisor would have done is
+# kill Chrome should R itself be killed outright. `cleanup = TRUE` still
+# kills it when R exits or the handle is collected, and `close()` asks Chrome
+# to quit and then makes sure.
 sc_launch_chrome <- function(headed = TRUE) {
-  if (!headed) {
-    chrome <- chromote::Chromote$new()
-    session <- chromote::ChromoteSession$new(parent = chrome)
-    return(list(
-      session = session, headed = FALSE,
-      close = function() try(chrome$close(), silent = TRUE)))
-  }
-
   profile <- tempfile("safeconduct-chrome-")
   dir.create(profile)
   proc <- processx::process$new(
     chromote::find_chrome(),
-    c("--remote-debugging-port=0",
+    c(if (!headed) "--headless",
+      "--remote-debugging-port=0",
       paste0("--user-data-dir=", profile),
       "--no-first-run", "--no-default-browser-check",
-      "--disable-extensions", "--disable-sync",
-      sc_window_args(),
+      "--disable-extensions", "--disable-sync", "--mute-audio",
+      if (headed) sc_window_args(),
       "about:blank"),
-    stdout = NULL, stderr = NULL, supervise = TRUE, cleanup = TRUE)
+    stdout = NULL, stderr = NULL, supervise = FALSE, cleanup = TRUE)
   state <- new.env()
   # Ask Chrome to quit over the protocol and give it a moment, so that the
   # socket closes from Chrome's side; killing it mid-connection makes the
@@ -166,16 +173,19 @@ sc_launch_chrome <- function(headed = TRUE) {
     unlink(profile, recursive = TRUE)
   }
   tryCatch({
-    port <- sc_devtools_port(profile)
+    port <- sc_devtools_port(profile, proc)
     remote <- chromote::ChromeRemote$new(host = "127.0.0.1", port = port)
     state$chrome <- chromote::Chromote$new(browser = remote)
     state$session <- chromote::ChromoteSession$new(parent = state$chrome)
-    invisible(state$session$Emulation$clearDeviceMetricsOverride())
+    # A new session carries chromote's 992 by 1323 viewport override, meant
+    # for headless work and kept there; in a window it is cleared, so that
+    # the viewport is the window's (see the top of this file).
+    if (headed) invisible(state$session$Emulation$clearDeviceMetricsOverride())
   }, error = function(e) {
     close()
     stop(e)
   })
-  list(session = state$session, headed = TRUE, close = close)
+  list(session = state$session, headed = headed, close = close)
 }
 
 # The user-agent string the browser announces, from the `useragent` argument

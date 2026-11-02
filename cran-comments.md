@@ -63,9 +63,12 @@ so rather than pretending otherwise.
   names. The Chrome profile is a temporary directory removed when the browser
   closes, and a file downloaded in the browser lands under `tempdir()` before
   it is moved to `destfile`.
-* Nothing is changed in the user's session: no options are set, and the one
+* Nothing is changed in the user's session: no options are set, the one
   option the package reads, `safeconduct.browser`, is a kill switch that
-  never opens a browser when `FALSE`.
+  never opens a browser when `FALSE`, and no connections are left open once
+  a browser has closed (Chrome is launched without processx's supervisor,
+  whose fifos would otherwise stay open and fail a downstream package's
+  examples under `R CMD check`).
 
 ## Test environments
 

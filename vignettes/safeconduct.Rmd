@@ -19,7 +19,7 @@ plain request gets, and shows how `safeconduct::fetch()` gets the file.
 
 The chunks below were run when this vignette was precomputed, not when the
 package is built: they need a Chrome and a network, and what a server does
-at a URL changes over time. The output shown was captured on 2026-10-24.
+at a URL changes over time. The output shown was captured on 2026-11-01.
 
 ## Two ways to be refused
 
@@ -78,7 +78,7 @@ url <- "https://www12.statcan.gc.ca/census-recensement/2021/geo/aip-pia/correspo
 da_ad_zip <- file.path(tempdir(), "da_ad.zip")
 download.file(url, da_ad_zip, mode = "wb")
 #> Warning in download.file(url, da_ad_zip, mode = "wb"): downloaded length 0 !=
-#> reported length 21894
+#> reported length 21961
 #> Warning in download.file(url, da_ad_zip, mode = "wb"): cannot open URL
 #> 'https://www12.statcan.gc.ca/census-recensement/2021/geo/aip-pia/correspondence-correspondance/files-fichiers/2021_92-156-X_DA_AD.zip':
 #> HTTP status was '403 Forbidden'

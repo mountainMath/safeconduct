@@ -39,8 +39,9 @@ The public flow (`R/fetch.R`, its header comment explains it):
 2. **Clearance cache**: `sc_clearance_cache`, one clearance (user agent + cookies) per host for the
    R session, reprobed before reuse and dropped when it has lapsed.
 3. **Open a browser** (`sc_open_browser()` / `sc_open_attempt()` in `R/fetch.R`,
-   `R/chrome.R`): Chrome launched directly with a throwaway temp profile (not
-   `chromote::Chrome$new()`, which forces `--headless`), on the host's root. `sc_wait_pass()`
+   `R/chrome.R`): Chrome launched directly with a throwaway temp profile, headless or not (not
+   through chromote's launcher, which forces `--headless` and supervises the process, leaving
+   fifo connections open; see the comment on `sc_launch_chrome()`), on the host's root. `sc_wait_pass()`
    decides pass/check/block from the main frame's `Network.responseReceived` document responses,
    not from a `cf_clearance` cookie.
 4. **Handoff or escort**: one ranged probe tests whether curl carrying the browser's clearance is
@@ -80,7 +81,8 @@ Cross-cutting pieces in `R/safeconduct-package.R`:
 - Internal functions are prefixed `sc_`. Small indirections such as `sc_probe()`,
   `sc_interactive()`, `sc_display_available()`, `sc_check_wait()` and `sc_page_grace()` exist so
   tests can replace them with `testthat::local_mocked_bindings()`.
-- Tests never touch the network or Chrome: `tests/testthat/helper-fake.R` provides
+- Tests never touch the network, and only one (the connection-count test at the end of
+  `test-chrome.R`, skipped without a browser and on CRAN) opens Chrome: `tests/testthat/helper-fake.R` provides
   `fake_session()` (a scripted stand-in for the chromote CDP surface: download and document
   events, response bodies, `Runtime.evaluate` results), `fake_chrome()`, `a_clearance()`,
   `reset_cache()` and `reset_hints()`.

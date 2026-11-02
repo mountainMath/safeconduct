@@ -320,3 +320,19 @@ test_that("the user-agent string is left alone, trimmed of Headless, or set", {
   expect_error(sc_set_useragent(s, c("a", "b")), "one string")
   expect_error(sc_set_useragent(s, ""), "one string")
 })
+
+# The one test that opens a real browser. processx's supervisor leaves two
+# fifo connections open in the session for good, which fails any downstream
+# example under R CMD check; Chrome is launched without it.
+test_that("opening and closing a browser leaves no connection behind", {
+  skip_on_cran()
+  skip_if_not(isTRUE(browser_available()), "no browser here")
+  n0 <- nrow(showConnections())
+  chrome <- sc_launch_chrome(headed = FALSE)
+  chrome$close()
+  expect_identical(nrow(showConnections()), n0)
+  skip_if_not(sc_display_available(), "no display for a window")
+  chrome <- sc_launch_chrome(headed = TRUE)
+  chrome$close()
+  expect_identical(nrow(showConnections()), n0)
+})
