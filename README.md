@@ -1,5 +1,9 @@
 # safeconduct <img src="man/figures/logo.png" align="right" height="138" alt="safeconduct hex sticker" />
 
+<!-- badges: start -->
+[![CRAN status](https://www.r-pkg.org/badges/version/safeconduct)](https://CRAN.R-project.org/package=safeconduct)
+<!-- badges: end -->
+
 Fetch files and pages through a real browser when a plain request is refused.
 
 Some servers refuse any request that does not come from a web browser.
@@ -99,6 +103,14 @@ Console tips are not shown for calls made from another package, and need no
 configuration to silence; they are messages of class `safeconduct_hint`.
 
 ## Installation
+
+From CRAN:
+
+```r
+install.packages("safeconduct")
+```
+
+The development version, from GitHub:
 
 ```r
 # install.packages("pak")

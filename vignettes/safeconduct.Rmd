@@ -46,6 +46,12 @@ clicked on anyone's behalf.
 
 
 ``` r
+install.packages("safeconduct")
+```
+
+The development version is on GitHub:
+
+``` r
 # install.packages("pak")
 pak::pak("mountainMath/safeconduct")
 ```
