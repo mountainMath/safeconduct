@@ -606,6 +606,28 @@ sc_browser_download <- function(session, url, destfile, quiet = FALSE,
 # URL and hands back status, headers and the body. The body comes as base64
 # so that binary resources survive the trip; the request is same-origin, so
 # every response header is readable, including `cf-mitigated` on a check.
+#
+# Same-origin is not a given. The check is passed on the host's root, and a
+# root may redirect to another host: https://www150.statcan.gc.ca/ ends on
+# https://www.statcan.gc.ca/ (November 2026, issue #1). From there the fetch
+# is cross-origin, the server sends no CORS headers, and Chrome refuses it
+# with nothing more than "TypeError: Failed to fetch". The document wait
+# took the other host's page for the host answering, so the browser had in
+# fact never been on the host at all, and the clearance it handed over held
+# no cookies of the host's. `sc_anchor()` therefore loads the URL itself
+# when the tab has ended on another origin, and waits only until the tab is
+# on the URL's origin, not until any check there is passed: Cloudflare
+# checks navigations, not the requests a page makes, and a same-origin
+# `fetch()` from the check page at www150.statcan.gc.ca was served 200 while
+# every navigation there, for twenty seconds and more, got the 403 check in
+# headless Chrome. Waiting for that check to pass would have meant a window
+# and a click for a read that needs neither. A block page there is still a
+# block. The clearance is taken again on the right host, whatever its
+# cookies are by then. A URL that does not open as a page -- one Chrome
+# would download -- leaves the tab where it was; downloads are denied while
+# it loads, so nothing is saved, and after `sc_page_grace()` seconds the read
+# says plainly where the browser is rather than passing on the bare "Failed
+# to fetch".
 # This is for pages and feeds read into memory; `fetch()` and
 # `sc_browser_download()` are the way to put a resource on disk.
 #
@@ -684,6 +706,42 @@ sc_await_spill <- function(session, pr, timeout = 120) {
   }
 }
 
+# The origin of the page the tab is showing, or NULL when it cannot be had.
+sc_page_origin <- function(session) {
+  v <- tryCatch(session$Runtime$evaluate("location.origin")$result$value,
+                error = function(e) NULL)
+  if (is.character(v) && length(v) == 1L) tolower(v) else NULL
+}
+
+# Bring the tab onto the origin of `url` if it is not there. Returns the
+# clearance taken once it is there, or NULL when the tab was there already
+# or could not be brought there within `sc_page_grace()` seconds. Raises
+# `safeconduct_not_passed` (`reason = "blocked"`) on a block page. See
+# "Reading a resource in the browser" above.
+sc_anchor <- function(session, url) {
+  want <- sc_url_origin(url)
+  here <- sc_page_origin(session)
+  if (is.null(here) || identical(here, want)) return(NULL)
+  invisible(session$Browser$setDownloadBehavior(behavior = "deny"))
+  w <- sc_watch_documents(session)
+  on.exit(w$stop(), add = TRUE)
+  invisible(session$Page$navigate(url, wait_ = FALSE))
+  started <- sc_now()
+  repeat {
+    Sys.sleep(0.25)
+    sc_pump(session)
+    if (identical(sc_page_origin(session), want)) {
+      kind <- sc_document_kind(session, w)
+      if (identical(kind, "block"))
+        stop(sc_error("safeconduct_not_passed", paste0(
+          "'", sc_url_host(url), "' blocks this browser too; there is no safe ",
+          "conduct to be had here."), reason = "blocked"))
+      if (!identical(kind, "pending")) return(sc_snapshot_clearance(session, url))
+    }
+    if (sc_secs_since(started) > sc_page_grace()) return(NULL)
+  }
+}
+
 # Returns a list like `curl::curl_fetch_memory()`'s: `url`, `status_code`,
 # `type`, `headers` (a named list) and `content` (raw). Raises
 # `safeconduct_download_error` when the request could not be made at all:
@@ -691,6 +749,13 @@ sc_await_spill <- function(session, pr, timeout = 120) {
 # not come back in time, or the browser is no longer there (`reason`
 # `"gone"`; a session opens another and reads again).
 sc_browser_read <- function(session, url, timeout = 120) {
+  here <- sc_page_origin(session)
+  if (!is.null(here) && !identical(here, sc_url_origin(url)))
+    stop(sc_error("safeconduct_download_error", paste0(
+      "Could not read '", url, "' in the browser: the browser is on '", here,
+      "', not '", sc_url_origin(url), "', and a page reads only from its own ",
+      "origin. '", url, "' did not open as a page there; fetch() downloads ",
+      "it instead.")))
   limit <- sc_read_limit()
   # Registered before the script runs: a large body is handed to Chrome as a
   # download from inside the script, and its first progress event can arrive

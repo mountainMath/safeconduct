@@ -125,9 +125,11 @@ sc_session_do <- function(session, fn, quiet = FALSE) {
 }
 
 # Read in the session's browser. The page reads same-origin only, so the URL
-# has to be on the session's host. A response that is a check or a block
-# means the host wants the browser checked again: the check is passed at the
-# root and the read made once more.
+# has to be on the session's host, and the tab is first brought onto the
+# URL's origin when the host's root sent it elsewhere (see `sc_anchor()`).
+# A response that is a check or a block means the host wants the browser
+# checked again: the check is passed at the root, the tab anchored again,
+# and the read made once more.
 sc_session_read <- function(session, url, quiet = FALSE, timeout = 120) {
   s <- sc_session_check(session)
   if (!identical(sc_url_host(url), s$host))
@@ -135,11 +137,13 @@ sc_session_read <- function(session, url, quiet = FALSE, timeout = 120) {
          "from its own host; '", url, "' is on '", sc_url_host(url), "'.",
          call. = FALSE)
   sc_session_do(s, quiet = quiet, function(chrome) {
+    s$clearance <- sc_anchor(chrome$session, url) %||% s$clearance
     r <- sc_browser_read(chrome$session, url, timeout = timeout)
     if (sc_needs_browser(sc_describe_response(r$status_code, r$headers, r$content))) {
       sc_message(quiet, "'", s$host, "' is asking the escort for a check again; ",
                  "passing it.")
       s$clearance <- sc_wait_pass(chrome$session, s$root, s$wait)
+      s$clearance <- sc_anchor(chrome$session, url) %||% s$clearance
       r <- sc_browser_read(chrome$session, url, timeout = timeout)
     }
     r

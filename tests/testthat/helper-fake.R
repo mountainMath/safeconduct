@@ -11,9 +11,13 @@
 # returns for anything but the user-agent query, either a value or a
 # function of the expression (one that raises stands for a browser that is
 # not answering). `active` is what `is_active()` reports; set it to `FALSE`
-# for a browser that has gone away.
+# for a browser that has gone away. `origin` is what `location.origin` gives:
+# NULL (the default) for a page whose origin is not asked about, or a string,
+# which a navigation then replaces with the origin of where it went unless
+# `follow` is FALSE (a URL Chrome would download leaves the tab in place).
 fake_session <- function(events = list(), cookies = list(), payload = "data",
-                         bodies = list(), read = NULL, ua = "Mozilla/5.0 (fake)") {
+                         bodies = list(), read = NULL, ua = "Mozilla/5.0 (fake)",
+                         origin = NULL, follow = TRUE) {
   dl_callback <- NULL
   doc_callback <- NULL
   n <- 0L
@@ -23,8 +27,13 @@ fake_session <- function(events = list(), cookies = list(), payload = "data",
   session$active <- TRUE
   session$is_active <- function() session$active
   session$ua <- ua
+  session$origin <- origin
   session$Browser <- list(
-    setDownloadBehavior = function(behavior, downloadPath, eventsEnabled) {
+    setDownloadBehavior = function(behavior, downloadPath = NULL, eventsEnabled = FALSE) {
+      if (identical(behavior, "deny")) {
+        session$calls <- c(session$calls, "deny")
+        return(list())
+      }
       dir <<- downloadPath
       session$download_dir <- downloadPath
       session$calls <- c(session$calls, "setDownloadBehavior")
@@ -54,6 +63,7 @@ fake_session <- function(events = list(), cookies = list(), payload = "data",
   session$Page <- list(
     navigate = function(url, wait_) {
       session$calls <- c(session$calls, paste0("navigate:", url))
+      if (!is.null(session$origin) && follow) session$origin <- sc_url_origin(url)
       list()
     },
     getFrameTree = function() list(frameTree = list(frame = list(id = "main"))),
@@ -82,6 +92,8 @@ fake_session <- function(events = list(), cookies = list(), payload = "data",
     evaluate = function(expr, ...) {
       if (identical(expr, "navigator.userAgent"))
         return(list(result = list(value = session$ua)))
+      if (identical(expr, "location.origin"))
+        return(list(result = list(value = session$origin)))
       session$calls <- c(session$calls, "evaluate")
       value <- if (is.function(read)) read(expr) else read
       list(result = list(value = value))

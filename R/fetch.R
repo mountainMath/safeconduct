@@ -210,7 +210,8 @@ read_page <- function(url, session = NULL, quiet = FALSE, timeout = 120,
   }
 
   sc_with_browser(url, quiet = quiet, what = p, headed = headed,
-                  useragent = useragent, hints = hints, function(chrome) {
+                  useragent = useragent, hints = hints, anchor = TRUE,
+                  function(chrome) {
     if (!sc_needs_browser(sc_probe(url, chrome$clearance))) {
       sc_message(quiet, "  Passed; reading with curl under the browser's clearance.")
       assign(host, chrome$clearance, envir = sc_clearance_cache)
@@ -286,9 +287,11 @@ download_in_browser <- function(url, destfile, quiet = FALSE, timeout = 3600,
 # Open a browser on the host and run `fn(chrome)` in it; the browser is
 # closed afterwards whatever happens. `fn` may close it earlier itself.
 sc_with_browser <- function(url, fn, quiet = FALSE, wait = NULL, what = NULL,
-                            headed = "auto", useragent = TRUE, hints = FALSE) {
+                            headed = "auto", useragent = TRUE, hints = FALSE,
+                            anchor = FALSE) {
   chrome <- sc_open_browser(url, quiet = quiet, wait = wait, what = what,
-                            headed = headed, useragent = useragent, hints = hints)
+                            headed = headed, useragent = useragent, hints = hints,
+                            anchor = anchor)
   on.exit(chrome$close(), add = TRUE)
   invisible(fn(chrome))
 }
@@ -299,9 +302,12 @@ sc_with_browser <- function(url, fn, quiet = FALSE, wait = NULL, what = NULL,
 # headless attempt that ends on a check or a block is made again in a window.
 # `what` is the probe that brought the browser in, for the message;
 # `useragent` the string the browser is to announce (see
-# `sc_set_useragent()`); `hints` whether tips may be shown (see `sc_hint()`).
+# `sc_set_useragent()`); `hints` whether tips may be shown (see `sc_hint()`);
+# `anchor` whether the browser is to end on the origin of `url` itself, for
+# a read made from the page (see `sc_anchor()`).
 sc_open_browser <- function(url, quiet = FALSE, wait = NULL, what = NULL,
-                            headed = "auto", useragent = TRUE, hints = FALSE) {
+                            headed = "auto", useragent = TRUE, hints = FALSE,
+                            anchor = FALSE) {
   useragent <- sc_useragent_check(useragent)
   reason <- sc_browser_unavailable_reason()
   if (!is.null(reason)) {
@@ -319,12 +325,12 @@ sc_open_browser <- function(url, quiet = FALSE, wait = NULL, what = NULL,
     if (headed) sc_window_note()
     else if (identical(mode, "auto")) "\n  Trying headless Chrome first."
     else "\n  Using headless Chrome.")
-  chrome <- sc_open_attempt(url, headed, wait, useragent)
+  chrome <- sc_open_attempt(url, headed, wait, useragent, anchor)
   if (inherits(chrome, "safeconduct_not_passed") && identical(mode, "auto")) {
     blocked <- identical(chrome$reason, "blocked")
     sc_message(quiet, "  Headless Chrome did not get through; opening a window.",
                sc_window_note())
-    chrome <- sc_open_attempt(url, TRUE, wait, useragent)
+    chrome <- sc_open_attempt(url, TRUE, wait, useragent, anchor)
     if (!inherits(chrome, "error")) {
       chrome$fell_back <- TRUE
       sc_hint(hints, paste0("headed:", host),
@@ -350,8 +356,12 @@ sc_window_note <- function() {
 # One launch and pass. Returns the browser, or the `safeconduct_not_passed`
 # condition after closing it. A window on a screen can be clicked by whoever
 # is at it, whether or not R is interactive, so its wait is for the person,
-# not the check; headless Chrome has no one to wait for.
-sc_open_attempt <- function(url, headed, wait = NULL, useragent = TRUE) {
+# not the check; headless Chrome has no one to wait for. A block page met
+# while bringing the tab onto the URL's own origin (`anchor`, see
+# `sc_anchor()`) ends the attempt the same way, so that "auto" can open a
+# window for it too.
+sc_open_attempt <- function(url, headed, wait = NULL, useragent = TRUE,
+                            anchor = FALSE) {
   wait <- wait %||% if (headed) 120 else 30
   chrome <- tryCatch(sc_launch_chrome(headed), error = function(e) {
     stop(sc_error("safeconduct_unavailable", paste0(
@@ -361,6 +371,8 @@ sc_open_attempt <- function(url, headed, wait = NULL, useragent = TRUE) {
   tryCatch({
     sc_set_useragent(chrome$session, useragent)
     chrome$clearance <- sc_wait_pass(chrome$session, sc_host_root(url), wait)
+    if (anchor)
+      chrome$clearance <- sc_anchor(chrome$session, url) %||% chrome$clearance
     chrome
   }, safeconduct_not_passed = function(e) {
     chrome$close()

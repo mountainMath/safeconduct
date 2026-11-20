@@ -37,6 +37,10 @@ sc_url_host <- function(url) sub("^https?://([^/]+)(/.*)?$", "\\1", url)
 # download in the browser the way the file's own URL would.
 sc_host_root <- function(url) paste0(sub("^(https?://[^/]+)(/.*)?$", "\\1", url), "/")
 
+# The origin of a URL, as `location.origin` gives it for a page: scheme and
+# host, lower case, no path.
+sc_url_origin <- function(url) tolower(sub("^(https?://[^/?#]+).*$", "\\1", url))
+
 # Tips for next time.
 #
 # Once `fetch()` has found out how a host has to be handled, the person at the

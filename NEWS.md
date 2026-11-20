@@ -1,5 +1,15 @@
 # safeconduct 0.1.0.9000 (development version)
 
+* `read_page()` and a `browser_session()` read from a host whose root
+  redirects to another host. The check was passed on the root, and the read
+  was then made from the other host's page, which the browser refuses as
+  cross-origin with nothing more than "Failed to fetch" (seen with
+  www150.statcan.gc.ca, whose root goes to www.statcan.gc.ca; #1). The
+  browser now loads the URL itself when the root has sent it elsewhere and
+  reads once it is on the host, and the clearance it hands over holds the
+  host's own cookies rather than the other host's. A URL that does not open
+  as a page there is reported as such.
+
 * `read_page()` no longer hangs on a large resource. A body much past 32 MB
   never came back whole in the single protocol reply the browser read rode
   in, and the read's own timeout did not fire (seen on a 27.8 MB file from

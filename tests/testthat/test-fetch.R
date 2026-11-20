@@ -314,6 +314,78 @@ test_that("read_page() reads in the browser where it must", {
 })
 
 
+test_that("read_page() brings the browser onto the URL's origin when the root sends it elsewhere", {
+  # The host's root redirects to another host (www150.statcan.gc.ca ->
+  # www.statcan.gc.ca, issue #1); a read made from there is cross-origin.
+  reset_cache()
+  local_headed(TRUE)
+  ck <- list(list(name = "__cf_bm", value = "host"))
+  ses <- fake_session(read = read_result(), origin = "https://www.example.org",
+                      cookies = ck)
+  chrome <- local_passing_browser(fake_chrome(ses))
+  local_mocked_bindings(sc_probe = blocked)
+  r <- read_page("https://example.org/feed.json", quiet = TRUE)
+  expect_true(all(c("deny", "navigate:https://example.org/feed.json") %in% ses$calls))
+  expect_identical(ses$origin, "https://example.org")
+  expect_identical(r$status_code, 200L)
+
+  # The clearance is the one taken on the host, not on the other host.
+  reset_cache()
+  ses <- fake_session(origin = "https://www.example.org", cookies = ck)
+  local_passing_browser(fake_chrome(ses))
+  probed <- NULL
+  local_mocked_bindings(
+    sc_probe = function(url, clearance = NULL) {
+      if (!is.null(clearance)) probed <<- clearance
+      if (is.null(clearance)) blocked(url) else unchallenged(url)
+    },
+    sc_curl_fetch = function(url, clearance = NULL) list(url = url))
+  read_page("https://example.org/feed.json", quiet = TRUE)
+  expect_identical(probed$cookie, "__cf_bm=host")
+  reset_cache()
+
+  # A URL that does not open as a page leaves the tab on the other host, and
+  # the read says so instead of passing on "Failed to fetch".
+  ses <- fake_session(read = read_result(), origin = "https://www.example.org",
+                      follow = FALSE)
+  local_passing_browser(fake_chrome(ses))
+  local_mocked_bindings(sc_probe = blocked, sc_page_grace = function() 0.3)
+  expect_error(read_page("https://example.org/feed.json", quiet = TRUE),
+               "on 'https://www.example.org', not 'https://example.org'",
+               class = "safeconduct_download_error")
+  expect_false("evaluate" %in% ses$calls)
+
+  # A block page on the host is a block: headless gives way to a window.
+  reset_cache()
+  local_mocked_bindings(sc_headed_mode = function(headed = "auto") "auto")
+  blk <- list(doc_event(403, cf_headers, requestId = "b1",
+                        url = "https://example.org/feed.json"))
+  first <- fake_session(origin = "https://www.example.org", events = blk,
+                        bodies = list(b1 = block_page))
+  second <- fake_session(read = read_result(), origin = "https://example.org")
+  opened <- list()
+  local_mocked_bindings(
+    sc_probe = blocked,
+    sc_launch_chrome = function(headed) {
+      opened <<- c(opened, headed)
+      fake_chrome(if (headed) second else first, headed = headed)
+    })
+  r <- read_page("https://example.org/feed.json", quiet = TRUE)
+  expect_identical(opened, list(FALSE, TRUE))
+  expect_identical(r$status_code, 200L)
+
+  # A tab already on the origin is left alone.
+  reset_cache()
+  local_headed(TRUE)
+  ses <- fake_session(read = read_result(), origin = "https://example.org")
+  local_passing_browser(fake_chrome(ses))
+  local_mocked_bindings(sc_probe = blocked)
+  read_page("https://example.org/feed.json", quiet = TRUE)
+  expect_false(any(grepl("^navigate|^deny", ses$calls)))
+  reset_cache()
+})
+
+
 test_that("a call counts as the console unless a package other than this one is on the stack", {
   ours <- topenv(environment(fetch))
   expect_true(sc_user_call(list(globalenv())))

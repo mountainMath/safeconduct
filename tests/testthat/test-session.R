@@ -212,3 +212,17 @@ test_that("a session's headless download that does not pass its check moves to a
   expect_false(s$headed)
   close(s)
 })
+
+test_that("a session brings its tab onto the URL's origin before reading", {
+  ses <- fake_session(read = read_result(), origin = "https://www.example.org",
+                      cookies = list(list(name = "__cf_bm", value = "host")))
+  x <- local_session(ses)
+  r <- read_page("https://example.org/feed.json", session = x$s)
+  expect_identical(sum(grepl("^navigate:", ses$calls)), 1L)
+  expect_identical(x$s$clearance$cookie, "__cf_bm=host")
+  expect_identical(r$status_code, 200L)
+  # Once there, the next read goes straight ahead.
+  read_page("https://example.org/other.json", session = x$s)
+  expect_identical(sum(grepl("^navigate:", ses$calls)), 1L)
+  close(x$s)
+})
