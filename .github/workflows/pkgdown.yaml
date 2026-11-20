@@ -1,12 +1,13 @@
 # Workflow derived from https://github.com/r-lib/actions/tree/v2/examples,
 # adapted to publish through the GitHub Pages Actions source rather than to a
-# gh-pages branch, which is how this repository's Pages is configured.
+# gh-pages branch, which is how this repository's Pages is configured. There
+# is no `release` trigger: the github-pages environment deploys only from
+# main, so a run on a release tag is refused at the deploy step, and a push
+# to main has already built the same site.
 on:
   push:
     branches: [main]
   pull_request:
-  release:
-    types: [published]
   workflow_dispatch:
 
 name: pkgdown
